@@ -8,11 +8,12 @@ export default function Home() {
       <AppHeader />
 
       <View style={styles.container}>
-        <Text style={styles.title}>app name</Text>
-        <Pressable style={styles.card} onPress={() => router.push("/play")}>
+        <Pressable
+          style={styles.card}
+          onPress={() => router.push("/train-setup")}
+        >
           <Text style={styles.cardText}>목소리 사칭 방어훈련 </Text>
         </Pressable>
-        가기
         <Pressable style={styles.card}>
           <Text style={styles.cardText}>내 목소리 딥페이크 체험</Text>
         </Pressable>
