@@ -54,13 +54,8 @@ export default function MyPage() {
       <View style={{ flex: 1 }}>
         <AppHeader
           title="마이페이지"
-          rightText="설정"
-          onRightPress={() => {
-            // 설정 화면이 없으면 일단 안내만
-            // 나중에 router.push("/settings")로 교체
-            // eslint-disable-next-line no-alert
-            alert("설정(추후 연결)");
-          }}
+          rightIconName="cog-outline" // 우측 버튼 텍스트
+          onRightPress={() => router.push("/setting")} // 클릭 시 설정 페이지로 이동
         />
 
         <ScrollView contentContainerStyle={styles.scroll}>
