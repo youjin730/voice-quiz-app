@@ -6,10 +6,11 @@ import AppHeader from "../components/AppHeader";
 export default function Home() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      {/* 메인 홈 화면이므로 마이페이지 아이콘 노출 (기본값) */}
       <AppHeader />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* 메뉴 1: 목소리 사칭 방어훈련 (시나리오 선택 화면으로 이동) */}
+        {/* 메뉴 1: 목소리 사칭 방어훈련 (가장 강조된 메인 카드) */}
         <Pressable
           style={[styles.card, styles.mainCard]}
           onPress={() => router.push("/train-setup")}
@@ -47,7 +48,7 @@ export default function Home() {
           </View>
         </Pressable>
 
-        {/* 메뉴 3: 개인 피드백 */}
+        {/* 메뉴 3: 개인 피드백 리포트 */}
         <Pressable style={styles.card} onPress={() => router.push("/feedback")}>
           <View style={[styles.iconBox, { backgroundColor: "#F3E5F5" }]}>
             <MaterialCommunityIcons
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: "900",
     color: "#0F1D3A",
-    fontFamily: "serif",
+    fontFamily: "serif", // 플랫폼에 따라 폰트 적용이 다를 수 있음
   },
   logoSubtitle: { fontSize: 14, color: "#666", marginTop: 5 },
   card: {
