@@ -1,19 +1,20 @@
-import { router } from "expo-router";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  Platform,
-  Linking,
-  TouchableOpacity,
-  Dimensions,
-} from "react-native";
-import {
-  MaterialCommunityIcons,
   AntDesign,
   FontAwesome,
+  MaterialCommunityIcons,
 } from "@expo/vector-icons";
+import { router } from "expo-router";
+import {
+  Dimensions,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -23,7 +24,12 @@ export default function Landing() {
   };
 
   return (
-    <View style={styles.container}>
+    // ✅ container View → ScrollView로 변경
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       {/* 1. 상단 & 중단: 브랜드 로고 및 로그인 (흰색 배경) */}
       <View style={styles.upperSection}>
         {/* 로고 영역 */}
@@ -36,7 +42,6 @@ export default function Landing() {
 
         {/* 로그인 버튼 영역 */}
         <View style={styles.loginArea}>
-          {/* 1) 일반 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.generalLogin]}
             onPress={() => router.push("/home")}
@@ -44,7 +49,6 @@ export default function Landing() {
             <Text style={styles.loginText}>로그인</Text>
           </Pressable>
 
-          {/* 2) 구글 로그인 버튼 (추가됨) */}
           <Pressable
             style={[styles.loginBtn, styles.google]}
             onPress={() => router.push("/home")}
@@ -60,7 +64,6 @@ export default function Landing() {
             </Text>
           </Pressable>
 
-          {/* 3) 카카오 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.kakao]}
             onPress={() => router.push("/home")}
@@ -76,7 +79,6 @@ export default function Landing() {
             </Text>
           </Pressable>
 
-          {/* 4) 회원가입 | 아이디 찾기 링크 (수정됨) */}
           <View style={styles.linkContainer}>
             <TouchableOpacity
               onPress={() => router.push("/signup")}
@@ -97,7 +99,7 @@ export default function Landing() {
         </View>
       </View>
 
-      {/* 2. 하단: 긴급 신고 센터 (회색 배경으로 분리) */}
+      {/* 2. 하단: 긴급 신고 센터 */}
       <View style={styles.bottomSection}>
         <View style={styles.emergencyHeader}>
           <MaterialCommunityIcons
@@ -110,7 +112,6 @@ export default function Landing() {
         </View>
 
         <View style={styles.iconRow}>
-          {/* 경찰청 */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => handleCall("112")}
@@ -125,7 +126,6 @@ export default function Landing() {
             <Text style={styles.iconText}>112 신고</Text>
           </TouchableOpacity>
 
-          {/* 금융감독원 */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => handleCall("1332")}
@@ -140,7 +140,6 @@ export default function Landing() {
             <Text style={styles.iconText}>금감원</Text>
           </TouchableOpacity>
 
-          {/* KISA */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => handleCall("118")}
@@ -156,14 +155,19 @@ export default function Landing() {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
 
-  // === 상단 섹션 (로고 + 로그인) ===
+  // ✅ 추가: ScrollView 내용 레이아웃
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24, // 하단 잘림 방지(필요시 40~80으로 늘려도 됨)
+  },
+
   upperSection: {
     flex: 1,
     justifyContent: "center",
@@ -171,10 +175,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  // 로고 스타일
   logoArea: {
     alignItems: "center",
-    marginBottom: 60, // 버튼이 늘어나서 간격 조금 줄임
+    marginBottom: 60,
     marginTop: 200,
   },
   logoHanja: {
@@ -203,12 +206,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // 로그인 버튼 스타일
-  loginArea: {
-    gap: 12, // 버튼 사이 간격
-  },
+  loginArea: { gap: 12 },
   loginBtn: {
-    height: 52, // 버튼 높이 약간 조정
+    height: 52,
     borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
@@ -218,45 +218,34 @@ const styles = StyleSheet.create({
   btnIcon: { marginRight: 10 },
   loginText: { fontSize: 16, fontWeight: "700", color: "#333" },
 
-  // 일반 로그인
   generalLogin: {
     backgroundColor: "#F5F5F5",
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
-
-  // 구글 로그인 (추가)
   google: {
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ddd",
   },
   googleText: { color: "#333" },
-
-  // 카카오 로그인
   kakao: { backgroundColor: "#FEE500" },
   kakaoText: { color: "#3B1E1E" },
 
-  // [수정됨] 하단 링크 컨테이너 (회원가입 | 아이디 찾기)
   linkContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 16,
   },
-  linkText: {
-    color: "#888",
-    fontSize: 13,
-    fontWeight: "500",
-  },
+  linkText: { color: "#888", fontSize: 13, fontWeight: "500" },
   divider: {
     width: 1,
     height: 12,
     backgroundColor: "#ccc",
-    marginHorizontal: 16, // 좌우 간격
+    marginHorizontal: 16,
   },
 
-  // === 하단 섹션 (긴급 신고) ===
   bottomSection: {
     backgroundColor: "#F8F9FA",
     paddingTop: 30,
@@ -275,21 +264,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  emergencyLabel: {
-    fontSize: 13,
-    color: "#888",
-    fontWeight: "600",
-  },
+  emergencyLabel: { fontSize: 13, color: "#888", fontWeight: "600" },
   iconRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     width: "100%",
     paddingHorizontal: 40,
   },
-  iconBtn: {
-    alignItems: "center",
-    gap: 8,
-  },
+  iconBtn: { alignItems: "center", gap: 8 },
   iconCircle: {
     width: 60,
     height: 60,
@@ -305,9 +287,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
-  iconText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#333",
-  },
+  iconText: { fontSize: 13, fontWeight: "600", color: "#333" },
 });

@@ -1,6 +1,6 @@
-import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AppHeader from "../components/AppHeader";
 
 // 브랜드 컬러 상수

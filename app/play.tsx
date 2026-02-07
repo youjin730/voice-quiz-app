@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 type Answer = "O" | "X" | "UNKNOWN";
@@ -29,7 +29,7 @@ export default function Play() {
     if (idx === TOTAL - 1) {
       // ✅ result.tsx는 total/correct를 받도록 수정할 거라 params로 넘김
       router.push({
-        pathname: "/short-result",
+        pathname: "/result",
         params: {
           total: String(TOTAL),
           correct: String(
@@ -60,7 +60,7 @@ export default function Play() {
           <Text style={styles.topIcon}>←</Text>
         </Pressable>
 
-        <Text style={styles.topTitle}>Speed Quiz</Text>
+        <Text style={styles.topTitle}>app name</Text>
 
         <Pressable onPress={() => router.push("/mypage")} style={styles.topBtn}>
           <Text style={styles.topRight}>My</Text>
