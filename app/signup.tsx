@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import AppHeader from "../components/AppHeader"; // 경로 확인 필요
+import AppHeader from "../components/AppHeader";
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -23,16 +23,27 @@ export default function SignupScreen() {
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [name, setName] = useState("");
+  const [birth, setBirth] = useState(""); // [추가됨] 생년월일
+  const [address, setAddress] = useState(""); // [추가됨] 주소
   const [phone, setPhone] = useState("");
 
   // 비밀번호 보이기/숨기기 토글
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  // 간단한 유효성 검사 (비밀번호 일치 여부)
+  // 유효성 검사
   const isPwMatch = password && confirmPw && password === confirmPw;
+
+  // [수정됨] 생년월일과 주소도 필수 입력 조건에 포함
   const isFormValid =
-    email && password && confirmPw && name && phone && isPwMatch;
+    email &&
+    password &&
+    confirmPw &&
+    name &&
+    birth &&
+    address &&
+    phone &&
+    isPwMatch;
 
   const handleSignup = () => {
     if (!isFormValid) {
@@ -40,7 +51,17 @@ export default function SignupScreen() {
       return;
     }
 
-    // TODO: 백엔드 회원가입 API 호출 로직 들어갈 곳
+    // 백엔드 전송용 데이터 확인 (콘솔 로그)
+    console.log({
+      email,
+      password,
+      name,
+      birth,
+      address,
+      phone,
+    });
+
+    // TODO: 백엔드 회원가입 API 호출 로직
 
     Alert.alert("가입 완료", "청음의 회원이 되신 것을 환영합니다!", [
       { text: "로그인하러 가기", onPress: () => router.back() },
@@ -49,7 +70,7 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <AppHeader title="회원가입" />
+      <AppHeader title="회원가입" hideRightIcon={true} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -149,7 +170,6 @@ export default function SignupScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              {/* 비밀번호 불일치 메시지 */}
               {confirmPw.length > 0 && !isPwMatch && (
                 <Text style={styles.errorText}>
                   비밀번호가 일치하지 않습니다.
@@ -177,7 +197,49 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* 5. 휴대폰 번호 */}
+            {/* 5. [추가됨] 생년월일 */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>생년월일</Text>
+              <View style={styles.inputBox}>
+                <MaterialCommunityIcons
+                  name="calendar-month"
+                  size={20}
+                  color="#888"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="생년월일 8자리 (예: 19990101)"
+                  placeholderTextColor="#bbb"
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  value={birth}
+                  onChangeText={setBirth}
+                />
+              </View>
+            </View>
+
+            {/* 6. [추가됨] 주소 */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>주소</Text>
+              <View style={styles.inputBox}>
+                <MaterialCommunityIcons
+                  name="home-outline"
+                  size={20}
+                  color="#888"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="도로명 주소를 입력해주세요"
+                  placeholderTextColor="#bbb"
+                  value={address}
+                  onChangeText={setAddress}
+                />
+              </View>
+            </View>
+
+            {/* 7. 휴대폰 번호 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>휴대폰 번호</Text>
               <View style={styles.inputBox}>
@@ -203,7 +265,7 @@ export default function SignupScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* 가입 완료 버튼 (하단 고정 느낌) */}
+        {/* 가입 완료 버튼 */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.submitBtn, !isFormValid && styles.disabledBtn]}

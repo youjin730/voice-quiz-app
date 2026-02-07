@@ -1,30 +1,33 @@
 import { router } from "expo-router";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
-// 1. 아이콘 라이브러리 임포트
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
   title?: string;
   rightText?: string;
-  // 2. 오른쪽 아이콘 이름 Prop 추가 (선택적)
   rightIconName?: keyof typeof MaterialCommunityIcons.glyphMap;
   onRightPress?: () => void;
+  // [추가됨] 오른쪽 메뉴 숨김 여부 (true면 숨김)
+  hideRightIcon?: boolean;
 };
 
 export default function AppHeader({
   title = "청 음",
-  rightText = "My", // 기본값은 빈 문자열로 설정
-  rightIconName, // 아이콘 이름 받기
+  rightText = "My",
+  rightIconName,
   onRightPress,
+  // 기본값은 false (보이게 설정)
+  hideRightIcon = false,
 }: Props) {
   const handleRightPress = () => {
+    // 숨김 처리되었으면 클릭 막기
+    if (hideRightIcon) return;
+
     if (onRightPress) {
       onRightPress();
     } else {
-      // 기본 동작이 필요하다면 여기에 작성 (예: router.push("/mypage"))
-      // 현재는 아이콘/텍스트가 없으면 눌러도 아무 일도 안 일어나게 두는 게 안전합니다.
       if (rightText || rightIconName) {
-        router.push("/mypage");
+        router.push("/mypage"); // 마이페이지 경로는 프로젝트에 맞게 수정
       }
     }
   };
@@ -32,24 +35,31 @@ export default function AppHeader({
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
+        {/* 1. 뒤로가기 버튼 */}
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Text style={styles.back}>←</Text>
         </Pressable>
 
+        {/* 2. 타이틀 */}
         <Text style={styles.title}>{title}</Text>
 
-        <Pressable style={styles.card} onPress={handleRightPress}>
-          {/* 3. 조건부 렌더링: 아이콘 이름이 있으면 아이콘을, 없으면 텍스트를 표시 */}
-          {rightIconName ? (
-            <MaterialCommunityIcons
-              name={rightIconName}
-              size={24}
-              color="#fff"
-            />
-          ) : (
-            <Text style={styles.right}>{rightText}</Text>
-          )}
-        </Pressable>
+        {/* 3. 오른쪽 영역 (숨김 옵션 적용) */}
+        {hideRightIcon ? (
+          // 숨길 때는 타이틀 중앙 정렬을 맞추기 위해 투명한 빈 공간만 둠
+          <View style={{ minWidth: 20 }} />
+        ) : (
+          <Pressable style={styles.card} onPress={handleRightPress}>
+            {rightIconName ? (
+              <MaterialCommunityIcons
+                name={rightIconName}
+                size={24}
+                color="#fff"
+              />
+            ) : (
+              <Text style={styles.right}>{rightText}</Text>
+            )}
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -71,7 +81,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 4,
     justifyContent: "center",
-    minWidth: 40,
+    minWidth: 20,
     alignItems: "flex-end",
   },
 

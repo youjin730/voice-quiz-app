@@ -36,15 +36,31 @@ export default function Landing() {
 
         {/* 로그인 버튼 영역 */}
         <View style={styles.loginArea}>
-          {/* 1) 일반 로그인 버튼 (구글 -> 로그인 변경) */}
+          {/* 1) 일반 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.generalLogin]}
-            onPress={() => router.push("/home")} // 실제 로그인 로직 연결 필요
+            onPress={() => router.push("/home")}
           >
             <Text style={styles.loginText}>로그인</Text>
           </Pressable>
 
-          {/* 2) 카카오 로그인 버튼 */}
+          {/* 2) 구글 로그인 버튼 (추가됨) */}
+          <Pressable
+            style={[styles.loginBtn, styles.google]}
+            onPress={() => router.push("/home")}
+          >
+            <AntDesign
+              name="google"
+              size={20}
+              color="#333"
+              style={styles.btnIcon}
+            />
+            <Text style={[styles.loginText, styles.googleText]}>
+              구글 계정으로 시작
+            </Text>
+          </Pressable>
+
+          {/* 3) 카카오 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.kakao]}
             onPress={() => router.push("/home")}
@@ -60,13 +76,24 @@ export default function Landing() {
             </Text>
           </Pressable>
 
-          {/* 3) 회원가입 링크 (추가됨) */}
-          <TouchableOpacity
-            onPress={() => router.push("/signup")} // 회원가입 페이지 이동
-            style={styles.signupContainer}
-          >
-            <Text style={styles.signupText}>회원가입</Text>
-          </TouchableOpacity>
+          {/* 4) 회원가입 | 아이디 찾기 링크 (수정됨) */}
+          <View style={styles.linkContainer}>
+            <TouchableOpacity
+              onPress={() => router.push("/signup")}
+              hitSlop={10}
+            >
+              <Text style={styles.linkText}>회원가입</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity
+              onPress={() => router.push("/find-id")}
+              hitSlop={10}
+            >
+              <Text style={styles.linkText}>아이디 찾기</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -147,8 +174,8 @@ const styles = StyleSheet.create({
   // 로고 스타일
   logoArea: {
     alignItems: "center",
-    marginBottom: 100, // 로그인 버튼과 간격 조정
-    marginTop: 190, // 전체적인 위치 조정
+    marginBottom: 60, // 버튼이 늘어나서 간격 조금 줄임
+    marginTop: 200,
   },
   logoHanja: {
     fontSize: 64,
@@ -178,11 +205,11 @@ const styles = StyleSheet.create({
 
   // 로그인 버튼 스타일
   loginArea: {
-    gap: 14,
+    gap: 12, // 버튼 사이 간격
   },
   loginBtn: {
-    height: 56,
-    borderRadius: 16,
+    height: 52, // 버튼 높이 약간 조정
+    borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -191,27 +218,42 @@ const styles = StyleSheet.create({
   btnIcon: { marginRight: 10 },
   loginText: { fontSize: 16, fontWeight: "700", color: "#333" },
 
-  // 일반 로그인 버튼 스타일 (기존 google 스타일 재활용)
+  // 일반 로그인
   generalLogin: {
     backgroundColor: "#F5F5F5",
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
 
+  // 구글 로그인 (추가)
+  google: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  googleText: { color: "#333" },
+
+  // 카카오 로그인
   kakao: { backgroundColor: "#FEE500" },
   kakaoText: { color: "#3B1E1E" },
 
-  // [추가됨] 회원가입 링크 스타일
-  signupContainer: {
-    marginTop: 10,
+  // [수정됨] 하단 링크 컨테이너 (회원가입 | 아이디 찾기)
+  linkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    padding: 10, // 터치 영역 확보
+    marginTop: 16,
   },
-  signupText: {
-    color: "#999", // 회색 글씨
-    fontSize: 14,
-    textDecorationLine: "underline", // 밑줄
+  linkText: {
+    color: "#888",
+    fontSize: 13,
     fontWeight: "500",
+  },
+  divider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "#ccc",
+    marginHorizontal: 16, // 좌우 간격
   },
 
   // === 하단 섹션 (긴급 신고) ===
