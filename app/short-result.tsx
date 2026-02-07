@@ -53,7 +53,10 @@ export default function Result() {
           </Text>
         </View>
 
-        <Pressable onPress={() => router.replace("/play")} style={styles.btn}>
+        <Pressable
+          onPress={() => router.replace("/short-result")}
+          style={styles.btn}
+        >
           <Text style={styles.btnText}>다시 훈련하기</Text>
         </Pressable>
 

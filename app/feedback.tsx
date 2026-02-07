@@ -1,290 +1,318 @@
-import React, { useState, useEffect } from "react";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
-  View,
-  Text,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
+  Text,
+  View,
+  Pressable,
+  Dimensions,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
 
-// 가상의 분석 데이터 (백엔드에서 받아올 데이터 구조)
-const MOCK_REPORT = {
-  userName: "분홍샌들의겸손한치타",
-  totalScore: 65, // 종합 점수
-  tier: "주의", // 등급: 안전 / 주의 / 위험
+const { width } = Dimensions.get("window");
+const NAVY = "#0F1D3A";
 
-  // 유형별 방어력 (100점 만점)
-  stats: {
-    investigator: 40, // 수사관 사칭 (취약)
-    loan: 85, // 대출 빙자
-    family: 90, // 가족 사칭
-  },
-
-  // 가장 취약한 부분 (분석 로직에 의해 결정됨)
-  weaknessType: "INVESTIGATOR" as "INVESTIGATOR" | "LOAN" | "FAMILY",
-};
+type TabMode = "SHORT" | "LONG";
 
 export default function FeedbackScreen() {
-  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabMode>("SHORT");
 
-  // 취약 유형별 맞춤 피드백 데이터
-  const feedbackContent = {
-    INVESTIGATOR: {
-      title: "수사기관 사칭에 특히 약하시네요!",
-      desc: "검찰이나 경찰을 사칭하며 '계좌가 범죄에 연루되었다'고 압박할 때 당황하는 경향이 있습니다.",
-      guideTitle: "수사기관 사칭 방어 수칙",
-      guideRules: [
-        "수사기관은 절대 전화로 돈을 요구하지 않습니다.",
-        "앱 설치나 링크 클릭을 유도하면 무조건 끊으세요.",
-        "소환장은 등기 우편으로만 발송됩니다.",
-      ],
-    },
-    LOAN: {
-      title: "저금리 대출 유혹을 조심하세요!",
-      desc: "기존 대출을 갚으면 저금리로 바꿔준다는 말에 흔들리는 경향이 보입니다.",
-      guideTitle: "대출 사기 방어 수칙",
-      guideRules: [
-        "금융사는 '선입금'이나 '상환 자금'을 개인 계좌로 요구하지 않습니다.",
-        "신용등급 상향비, 보증비 명목의 입금은 100% 사기입니다.",
-        "반드시 해당 금융사 대표번호로 직접 확인하세요.",
-      ],
-    },
-    FAMILY: {
-      title: "가족의 다급한 목소리에 속지 마세요!",
-      desc: "가족이 납치되거나 다쳤다는 말에 이성적인 판단을 놓치는 경우가 있습니다.",
-      guideTitle: "지인 사칭 방어 수칙",
-      guideRules: [
-        "돈을 요구하면 일단 전화를 끊고 당사자에게 다시 거세요.",
-        "목소리가 똑같아도 딥페이크일 수 있습니다.",
-        "둘만의 암호를 미리 정해두는 것이 좋습니다.",
-      ],
-    },
+  // MOCK DATA: 숏폼(퀴즈) 데이터 -> 3가지 지표 유지
+  const shortData = {
+    count: 24,
+    accuracy: "58%",
+    subStatLabel: "오답 유형",
+    subStatValue: "대출 권유",
+    oneLine:
+      "확신이 없을 땐 '잘 모르겠음' 선택이 안전합니다. 대출 권유 유형에서 오답률이 높습니다.",
+    weakPatterns: [
+      "저금리 대출 문자에 링크 클릭 유도",
+      "기존 대출 상환을 위한 선입금 요구",
+    ],
+    weakType: "LOAN", // 대출 사칭
   };
 
-  // 현재 사용자의 취약점에 맞는 콘텐츠 가져오기
-  const currentFeedback = feedbackContent[MOCK_REPORT.weaknessType];
+  // MOCK DATA: 롱폼(실전) 데이터 -> 방어 등급 제거 (2가지 지표만 사용)
+  const longData = {
+    count: 12,
+    accuracy: "85점", // 롱폼은 점수
+    // subStatLabel, subStatValue 제거됨
+    oneLine:
+      "기관 사칭 상황에서 당황하여 침묵하는 시간이 깁니다. 더 단호하게 끊는 연습이 필요합니다.",
+    weakPatterns: [
+      "검찰/경찰 사칭 시 목소리 떨림 감지",
+      "압박 질문('공무집행방해')에 답변 못함",
+    ],
+    weakType: "INVESTIGATOR", // 기관 사칭
+  };
+
+  // 현재 탭에 따른 데이터 선택
+  const currentData = activeTab === "SHORT" ? shortData : longData;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={styles.safe}>
       <AppHeader title="개인 피드백 리포트" />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* 1. 종합 점수 카드 */}
-        <View style={styles.scoreCard}>
-          <View style={styles.scoreHeader}>
-            <Text style={styles.scoreTitle}>
-              {MOCK_REPORT.userName}님의 방어력
-            </Text>
-            <View style={[styles.tierBadge, { backgroundColor: "#FF9800" }]}>
-              <Text style={styles.tierText}>{MOCK_REPORT.tier} 단계</Text>
-            </View>
-          </View>
-
-          <Text style={styles.totalScore}>{MOCK_REPORT.totalScore}점</Text>
-          <Text style={styles.scoreDesc}>
-            평균보다 조금 낮아요.{"\n"}조금 더 훈련이 필요합니다!
-          </Text>
-        </View>
-
-        {/* 2. 유형별 분석 차트 (Custom Progress Bar) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>유형별 방어력 분석</Text>
-          <View style={styles.chartBox}>
-            <StatBar
-              label="수사관 사칭"
-              score={MOCK_REPORT.stats.investigator}
-              color="#FF5252"
-            />
-            <StatBar
-              label="대출/금융"
-              score={MOCK_REPORT.stats.loan}
-              color="#4CAF50"
-            />
-            <StatBar
-              label="가족/지인"
-              score={MOCK_REPORT.stats.family}
-              color="#2196F3"
-            />
-          </View>
-        </View>
-
-        {/* 3. AI 맞춤 분석 (취약점) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI 취약점 진단</Text>
-          <View
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {/* 1. 탭 스위처 (Short vs Long) */}
+        <View style={styles.tabContainer}>
+          <Pressable
             style={[
-              styles.feedbackBox,
-              { backgroundColor: "#FFF3E0", borderColor: "#FFE0B2" },
+              styles.tabBtn,
+              activeTab === "SHORT" && styles.tabBtnActive,
             ]}
+            onPress={() => setActiveTab("SHORT")}
           >
-            <View style={styles.feedbackHeader}>
-              <MaterialCommunityIcons
-                name="alert-decagram"
-                size={24}
-                color="#F57C00"
-              />
-              <Text style={styles.feedbackTitle}>{currentFeedback.title}</Text>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "SHORT" && styles.tabTextActive,
+              ]}
+            >
+              숏폼 (퀴즈)
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabBtn, activeTab === "LONG" && styles.tabBtnActive]}
+            onPress={() => setActiveTab("LONG")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "LONG" && styles.tabTextActive,
+              ]}
+            >
+              롱폼 (실전)
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* 2. 메인 학습 리포트 카드 */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>학습 리포트 (최근 7일)</Text>
+
+          {/* 통계 박스 (Flex로 자동 조절) */}
+          <View style={styles.statsRow}>
+            {/* 1. 훈련 횟수 (공통) */}
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>훈련 횟수</Text>
+              <Text style={styles.statValue}>{currentData.count}회</Text>
+              <Text style={styles.statSub}>꾸준함 유지</Text>
             </View>
-            <Text style={styles.feedbackDesc}>{currentFeedback.desc}</Text>
+
+            {/* 2. 정답률 / 평균 점수 (공통) */}
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>
+                {activeTab === "SHORT" ? "정답률" : "평균 점수"}
+              </Text>
+              <Text style={styles.statValue}>{currentData.accuracy}</Text>
+              <Text style={styles.statSub}>상위 30%</Text>
+            </View>
+
+            {/* 3. 오답 유형 (숏폼일 때만 표시) */}
+            {activeTab === "SHORT" && (
+              <View style={styles.statBox}>
+                <Text style={styles.statLabel}>{shortData.subStatLabel}</Text>
+                <Text
+                  style={[styles.statValue, { fontSize: 18, marginTop: 4 }]}
+                >
+                  {shortData.subStatValue}
+                </Text>
+                <Text style={styles.statSub}>집중 관리</Text>
+              </View>
+            )}
+          </View>
+
+          {/* 한 줄 피드백 */}
+          <View style={styles.feedbackBox}>
+            <Text style={styles.feedbackTitle}>한 줄 피드백</Text>
+            <Text style={styles.feedbackText}>{currentData.oneLine}</Text>
           </View>
         </View>
 
-        {/* 4. 행동 강령 가이드 */}
-        <View style={styles.section}>
-          <View style={styles.guideBox}>
-            <Text style={styles.guideHeader}>{currentFeedback.guideTitle}</Text>
-            {currentFeedback.guideRules.map((rule, index) => (
-              <View key={index} style={styles.ruleRow}>
-                <MaterialCommunityIcons
-                  name="check-circle"
-                  size={18}
-                  color="#0F1D3A"
-                  style={{ marginTop: 2 }}
-                />
-                <Text style={styles.ruleText}>{rule}</Text>
+        {/* 3. 취약 패턴 분석 및 훈련 유도 */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>취약 패턴 (개선 포인트)</Text>
+
+          <View style={styles.patternList}>
+            {currentData.weakPatterns.map((pattern, idx) => (
+              <View key={idx} style={styles.patternItem}>
+                <View style={styles.dot} />
+                <Text style={styles.patternText}>{pattern}</Text>
               </View>
             ))}
           </View>
+
+          {/* 하단 CTA 버튼 */}
+          <Pressable
+            style={styles.trainBtn}
+            onPress={() => {
+              // 해당 모드와 취약 유형을 가지고 훈련 설정으로 이동
+              router.push("/train-setup");
+            }}
+          >
+            <Text style={styles.trainBtnText}>이 유형으로 훈련하기</Text>
+          </Pressable>
         </View>
 
-        <View style={{ height: 30 }} />
+        {/* 4. 필수 행동 가이드 */}
+        <View style={[styles.card, { marginBottom: 40 }]}>
+          <Text style={[styles.cardTitle, { color: NAVY }]}>
+            필수 행동 가이드
+          </Text>
+          <View style={styles.guideContainer}>
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: "bold" }}>1. </Text>
+              수사기관(검찰, 경찰)은 절대로{" "}
+              <Text style={{ color: "#EF4444", fontWeight: "bold" }}>
+                금전 이체
+              </Text>
+              나{" "}
+              <Text style={{ color: "#EF4444", fontWeight: "bold" }}>
+                현금 인출
+              </Text>
+              을 요구하지 않습니다.
+            </Text>
+            <View style={styles.divider} />
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: "bold" }}>2. </Text>
+              모르는 번호로 온 문자의{" "}
+              <Text style={{ color: "#EF4444", fontWeight: "bold" }}>
+                URL 링크
+              </Text>
+              는 절대 클릭하지 마세요.
+            </Text>
+          </View>
+        </View>
       </ScrollView>
-    </View>
-  );
-}
-
-// [컴포넌트] 막대 그래프 바
-function StatBar({
-  label,
-  score,
-  color,
-}: {
-  label: string;
-  score: number;
-  color: string;
-}) {
-  return (
-    <View style={styles.statRow}>
-      <View style={{ width: 80 }}>
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-      <View style={styles.barBackground}>
-        <View
-          style={[
-            styles.barFill,
-            { width: `${score}%`, backgroundColor: color },
-          ]}
-        />
-      </View>
-      <Text style={styles.statScore}>{score}점</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24 },
+  safe: { flex: 1, backgroundColor: "#F6F7FB" },
+  scroll: { padding: 20 },
 
-  // 점수 카드
-  scoreCard: {
-    backgroundColor: "#0F1D3A", // 브랜드 컬러
+  // 탭 스타일
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  tabBtnActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  tabTextActive: {
+    color: NAVY,
+    fontWeight: "bold",
+  },
+
+  // 카드 공통 스타일
+  card: {
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 24,
-    alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 20,
+    // 그림자
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  scoreHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  scoreTitle: { color: "rgba(255,255,255,0.8)", fontSize: 16, marginRight: 8 },
-  tierBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  tierText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  totalScore: {
-    fontSize: 48,
-    fontWeight: "900",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  scoreDesc: {
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-
-  // 공통 섹션
-  section: { marginBottom: 30 },
-  sectionTitle: {
-    fontSize: 18,
+  cardTitle: {
+    fontSize: 16,
     fontWeight: "800",
-    color: "#333",
+    color: "#111",
     marginBottom: 16,
   },
 
-  // 차트 박스
-  chartBox: { backgroundColor: "#F8F9FA", padding: 20, borderRadius: 16 },
-  statRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  statLabel: { fontSize: 14, fontWeight: "600", color: "#555" },
-  barBackground: {
-    flex: 1,
-    height: 10,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 5,
-    marginHorizontal: 10,
-  },
-  barFill: { height: "100%", borderRadius: 5 },
-  statScore: {
-    width: 30,
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#333",
-    textAlign: "right",
-  },
-
-  // 취약점 피드백 박스
-  feedbackBox: {
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  feedbackHeader: {
+  // 통계 박스 (Flex로 자동 조절)
+  statsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 20,
+  },
+  statBox: {
+    flex: 1, // 아이템 개수에 따라 너비 자동 분배 (2개면 50%, 3개면 33%)
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 12,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    minHeight: 100,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  statValue: { fontSize: 22, fontWeight: "900", color: "#111" },
+  statSub: { fontSize: 11, color: "#9CA3AF", marginTop: 4 },
+
+  // 한 줄 피드백
+  feedbackBox: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 16,
   },
   feedbackTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#E65100",
-    marginLeft: 8,
-    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#111",
+    marginBottom: 6,
   },
-  feedbackDesc: { fontSize: 14, color: "#5D4037", lineHeight: 22 },
+  feedbackText: { fontSize: 13, color: "#4B5563", lineHeight: 20 },
 
-  // 가이드 박스
-  guideBox: {
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: "#fff",
+  // 취약 패턴 리스트
+  patternList: { marginBottom: 20 },
+  patternItem: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#111",
+    marginRight: 10,
   },
-  guideHeader: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0F1D3A",
-    marginBottom: 16,
+  patternText: { fontSize: 15, color: "#374151", lineHeight: 22 },
+
+  // 훈련하기 버튼
+  trainBtn: {
+    backgroundColor: NAVY,
+    borderRadius: 14,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  ruleRow: { flexDirection: "row", marginBottom: 12, alignItems: "flex-start" },
-  ruleText: {
-    fontSize: 14,
-    color: "#555",
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 20,
+  trainBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "bold",
   },
+
+  // 가이드 섹션
+  guideContainer: { gap: 12 },
+  guideText: { fontSize: 14, color: "#333", lineHeight: 22 },
+  divider: { height: 1, backgroundColor: "#F3F4F6" },
 });

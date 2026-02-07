@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -10,150 +10,73 @@ import {
 } from "react-native";
 import AppHeader from "../components/AppHeader";
 
-type Mode = "SHORT" | "LONG";
-type ScenarioKey = "INVESTIGATOR" | "LOAN" | "FAMILY" | "DELIVERY" | "PARTTIME";
-
-const SCENARIOS: {
-  key: ScenarioKey;
-  title: string;
-  desc: string;
-  emoji: string;
-}[] = [
-  {
-    key: "INVESTIGATOR",
-    title: "기관/수사관 사칭",
-    desc: "계좌·사건 연루를 빌미로 압박",
-    emoji: "🕵️",
-  },
-  {
-    key: "LOAN",
-    title: "대출/금융 사칭",
-    desc: "저금리 대환·수수료 요구",
-    emoji: "💳",
-  },
-  {
-    key: "FAMILY",
-    title: "가족/지인 사칭",
-    desc: "급한 상황을 만들어 송금 유도",
-    emoji: "👨‍👩‍👧",
-  },
-  {
-    key: "DELIVERY",
-    title: "택배/문자 링크",
-    desc: "링크 클릭·앱 설치 유도",
-    emoji: "📦",
-  },
-  {
-    key: "PARTTIME",
-    title: "알바/구인 사기",
-    desc: "인증·선입금 요구",
-    emoji: "🧾",
-  },
-];
+type TrainingMode = "SHORT" | "LONG";
 
 export default function TrainSetup() {
-  const [mode, setMode] = useState<Mode>("SHORT");
-  const [selected, setSelected] = useState<ScenarioKey[]>([]);
-
-  const maxPick = 3;
-
-  const canStart = useMemo(() => selected.length > 0, [selected]);
-
-  const modeDesc =
-    mode === "SHORT"
-      ? "10~15초 음성 · 빠르게 감 잡기"
-      : "30~60초 음성 · 맥락 속에서 판단하기";
-
-  function toggleScenario(key: ScenarioKey) {
-    setSelected((prev) => {
-      const exists = prev.includes(key);
-      if (exists) return prev.filter((k) => k !== key);
-      if (prev.length >= maxPick) return prev; // 최대 선택 제한
-      return [...prev, key];
-    });
-  }
+  const [selectedMode, setSelectedMode] = useState<TrainingMode | null>(null);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={{ flex: 1 }}>
-        {/* 오른쪽 텍스트 없음 */}
         <AppHeader title="훈련 설정" />
 
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.h1}>오늘의 훈련을 고르세요 🎯</Text>
+          <Text style={styles.h1}>어떤 훈련을 진행할까요? 🎯</Text>
           <Text style={styles.sub}>
-            숏폼/롱폼을 선택하고, 시나리오를 최대 {maxPick}개까지 고를 수
-            있어요.
+            순발력을 기르는 숏폼 퀴즈와 실전 방어력을 기르는{"\n"}
+            롱폼 시뮬레이션 중 선택해주세요.
           </Text>
 
-          {/* 1) 숏폼/롱폼 선택 (단일) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>훈련 방식</Text>
+          <View style={styles.cardContainer}>
+            {/* 1. 숏폼 훈련 카드 */}
+            <TrainingCard
+              mode="SHORT"
+              title="숏폼 훈련 (Speed Quiz)"
+              subtitle="순발력 강화 O/X"
+              desc="실제 보이스피싱 음성을 듣고 15초 내에 판단하는 훈련입니다."
+              tags={["총 5문항", "O/X 퀴즈", "즉시 채점", "AI 피드백"]}
+              selected={selectedMode === "SHORT"}
+              onPress={() => setSelectedMode("SHORT")}
+            />
 
-            <View style={styles.modeRow}>
-              <ModeChip
-                label="숏폼"
-                selected={mode === "SHORT"}
-                onPress={() => setMode("SHORT")}
-              />
-              <ModeChip
-                label="롱폼"
-                selected={mode === "LONG"}
-                onPress={() => setMode("LONG")}
-              />
-            </View>
-
-            <View style={styles.hintBubble}>
-              <Text style={styles.hintText}>{modeDesc}</Text>
-            </View>
+            {/* 2. 롱폼 훈련 카드 */}
+            <TrainingCard
+              mode="LONG"
+              title="롱폼 훈련 (Role Play)"
+              subtitle="실전 시뮬레이션"
+              desc="AI 범인과 무전기로 대화하며 상황을 해결하는 방어 훈련입니다."
+              tags={[
+                "랜덤 시나리오",
+                "무전기 대화",
+                "음성 대응",
+                "방어 리포트",
+              ]}
+              selected={selectedMode === "LONG"}
+              onPress={() => setSelectedMode("LONG")}
+            />
           </View>
 
-          {/* 2) 시나리오 선택 (최대 3개) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>시나리오 선택</Text>
-
-            <View style={styles.helperRow}>
-              <Text style={styles.helperText}>
-                최대 {maxPick}개까지 선택 가능
-              </Text>
-              <Text style={styles.helperCount}>
-                {selected.length}/{maxPick}
-              </Text>
-            </View>
-
-            {SCENARIOS.map((s) => (
-              <ScenarioCard
-                key={s.key}
-                emoji={s.emoji}
-                title={s.title}
-                desc={s.desc}
-                selected={selected.includes(s.key)}
-                disabled={
-                  !selected.includes(s.key) && selected.length >= maxPick
-                }
-                onPress={() => toggleScenario(s.key)}
-              />
-            ))}
-          </View>
-
-          <View style={{ height: 90 }} />
+          <View style={{ height: 100 }} />
         </ScrollView>
 
         {/* 하단 고정 CTA */}
         <View style={styles.bottomBar}>
           <Pressable
-            disabled={!canStart}
-            style={[styles.cta, !canStart && styles.ctaDisabled]}
+            disabled={!selectedMode}
+            style={[styles.cta, !selectedMode && styles.ctaDisabled]}
             onPress={() => {
-              // ✅ 다음 화면에 mode/selected를 넘기고 싶으면 query로 넘길 수 있음
-              // 예: router.push({ pathname: "/play", params: { mode, scenarios: selected.join(",") } })
-              router.push("/play");
+              // 경로 수정: play 폴더 없이 바로 app 폴더 아래 파일로 이동
+              if (selectedMode === "SHORT") {
+                router.push("/short-form");
+              } else {
+                router.push("/long-form");
+              }
             }}
           >
             <Text style={styles.ctaText}>
-              {canStart
-                ? "선택 완료 · 훈련 시작"
-                : "시나리오를 1개 이상 선택하세요"}
+              {selectedMode
+                ? `${selectedMode === "SHORT" ? "숏폼" : "롱폼"} 훈련 시작하기`
+                : "훈련 모드를 선택해주세요"}
             </Text>
           </Pressable>
         </View>
@@ -164,70 +87,52 @@ export default function TrainSetup() {
 
 /* ---------- UI Components ---------- */
 
-function ModeChip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.modeChip, selected && styles.modeChipSelected]}
-    >
-      <Text
-        style={[styles.modeChipText, selected && styles.modeChipTextSelected]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function ScenarioCard({
-  emoji,
+function TrainingCard({
+  mode,
   title,
+  subtitle,
   desc,
+  tags,
   selected,
-  disabled,
   onPress,
 }: {
-  emoji: string;
+  mode: TrainingMode;
   title: string;
+  subtitle: string;
   desc: string;
+  tags: string[];
   selected: boolean;
-  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
-      style={[
-        styles.card,
-        selected && styles.cardSelected,
-        disabled && styles.cardDisabled,
-      ]}
+      style={[styles.card, selected && styles.cardSelected]}
     >
-      <View style={styles.cardLeft}>
-        <View style={styles.iconCircle}>
-          <Text style={{ fontSize: 18 }}>{emoji}</Text>
-        </View>
+      <View style={styles.cardHeader}>
         <View style={{ flex: 1 }}>
+          <Text style={styles.cardSubtitle}>{subtitle}</Text>
           <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardDesc}>{desc}</Text>
+        </View>
+
+        {/* 라디오 버튼 (선택 표시) */}
+        <View
+          style={[styles.radioCircle, selected && styles.radioCircleSelected]}
+        >
+          {selected && <View style={styles.radioInner} />}
         </View>
       </View>
 
-      <View
-        style={[styles.checkCircle, selected && styles.checkCircleSelected]}
-      >
-        <Text style={[styles.checkText, selected && styles.checkTextSelected]}>
-          ✓
-        </Text>
+      {/* 설명 텍스트 */}
+      <Text style={styles.cardDesc}>{desc}</Text>
+
+      {/* 태그 리스트 */}
+      <View style={styles.tagRow}>
+        {tags.map((tag, idx) => (
+          <View key={idx} style={styles.tag}>
+            <Text style={styles.tagText}>{tag}</Text>
+          </View>
+        ))}
       </View>
     </Pressable>
   );
@@ -237,105 +142,106 @@ function ScenarioCard({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F6F7FB" },
+  scroll: { padding: 20 },
 
-  scroll: { padding: 16 },
+  h1: { fontSize: 24, fontWeight: "900", color: "#111827", marginBottom: 8 },
+  sub: { fontSize: 14, color: "#6B7280", lineHeight: 22, marginBottom: 24 },
 
-  h1: { fontSize: 22, fontWeight: "900", marginTop: 10, color: "#111827" },
-  sub: { marginTop: 8, fontSize: 13, color: "#6B7280", lineHeight: 18 },
-
-  section: { marginTop: 18 },
-  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
-
-  modeRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  modeChip: {
-    flex: 1,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modeChipSelected: {
-    borderWidth: 2,
-    borderColor: "#22C55E",
-    backgroundColor: "#F0FDF4",
-  },
-  modeChipText: { fontSize: 14, fontWeight: "800", color: "#111827" },
-  modeChipTextSelected: { color: "#166534" },
-
-  hintBubble: {
-    marginTop: 10,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  hintText: { fontSize: 12, color: "#374151", fontWeight: "700" },
-
-  helperRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  helperText: { fontSize: 12, color: "#6B7280", fontWeight: "700" },
-  helperCount: { fontSize: 12, color: "#111827", fontWeight: "900" },
+  cardContainer: { gap: 16 },
 
   card: {
-    marginTop: 12,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardSelected: {
+    borderColor: "#0F1D3A",
+    backgroundColor: "#FFFFFF",
+  },
+
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  cardSubtitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  cardTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
+
+  radioCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#22C55E",
-    backgroundColor: "#F0FDF4",
-  },
-  cardDisabled: { opacity: 0.5 },
-
-  cardLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F3F4F6",
+    borderColor: "#D1D5DB",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 15, fontWeight: "900", color: "#111827" },
-  cardDesc: { marginTop: 4, fontSize: 12, color: "#6B7280" },
-
-  checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
+  radioCircleSelected: {
+    borderColor: "#0F1D3A",
   },
-  checkCircleSelected: { backgroundColor: "#22C55E" },
-  checkText: { fontSize: 16, fontWeight: "900", color: "#9CA3AF" },
-  checkTextSelected: { color: "#FFFFFF" },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#0F1D3A",
+  },
+
+  cardDesc: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tag: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  tagText: { fontSize: 12, fontWeight: "600", color: "#4B5563" },
 
   bottomBar: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 12,
-    backgroundColor: "rgba(246,247,251,0.95)",
+    padding: 16,
+    backgroundColor: "#F6F7FB",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   cta: {
-    height: 52,
+    height: 56,
     borderRadius: 16,
-    backgroundColor: "#22C55E",
+    backgroundColor: "#0F1D3A",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#0F1D3A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  ctaDisabled: { backgroundColor: "#B9C2D3" },
-  ctaText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
+  ctaDisabled: {
+    backgroundColor: "#9CA3AF",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  ctaText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
 });

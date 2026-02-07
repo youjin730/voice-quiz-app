@@ -29,7 +29,7 @@ export default function Play() {
     if (idx === TOTAL - 1) {
       // ✅ result.tsx는 total/correct를 받도록 수정할 거라 params로 넘김
       router.push({
-        pathname: "/result",
+        pathname: "/short-result",
         params: {
           total: String(TOTAL),
           correct: String(

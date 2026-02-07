@@ -3,14 +3,18 @@ import { Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
 
+// 브랜드 컬러 상수
+const NAVY = "#0F1D3A";
+
 export default function Home() {
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* 메인 홈 화면이므로 마이페이지 아이콘 노출 (기본값) */}
+    <View style={{ flex: 1, backgroundColor: "#F6F7FB" }}>
+      {/* 배경색을 아주 연한 회색으로 주어 카드와 대비감 형성 */}
       <AppHeader />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* 메뉴 1: 목소리 사칭 방어훈련 (가장 강조된 메인 카드) */}
+        {/* 메뉴 1: 목소리 사칭 방어훈련 (메인 - 네이비 배경) */}
+        {/* 메인 카드는 그대로 강조 유지 */}
         <Pressable
           style={[styles.card, styles.mainCard]}
           onPress={() => router.push("/train-setup")}
@@ -35,11 +39,12 @@ export default function Home() {
 
         {/* 메뉴 2: 내 목소리 딥페이크 체험 */}
         <Pressable style={styles.card} onPress={() => router.push("/deepfake")}>
-          <View style={[styles.iconBox, { backgroundColor: "#E3F2FD" }]}>
+          {/* 기존 파란색 배경 -> 연한 회색 + 네이비 아이콘으로 변경 */}
+          <View style={styles.iconBoxSub}>
             <MaterialCommunityIcons
               name="microphone-outline"
               size={24}
-              color="#1565C0"
+              color={NAVY} // 브랜드 컬러로 통일
             />
           </View>
           <View style={styles.cardTextBox}>
@@ -50,11 +55,12 @@ export default function Home() {
 
         {/* 메뉴 3: 개인 피드백 리포트 */}
         <Pressable style={styles.card} onPress={() => router.push("/feedback")}>
-          <View style={[styles.iconBox, { backgroundColor: "#F3E5F5" }]}>
+          {/* 기존 보라색 배경 -> 연한 회색 + 네이비 아이콘으로 변경 */}
+          <View style={styles.iconBoxSub}>
             <MaterialCommunityIcons
               name="chart-bar"
               size={24}
-              color="#7B1FA2"
+              color={NAVY} // 브랜드 컬러로 통일
             />
           </View>
           <View style={styles.cardTextBox}>
@@ -69,52 +75,68 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 50 },
-  logoContainer: { alignItems: "center", marginVertical: 30 },
-  logoTitle: {
-    fontSize: 40,
-    fontWeight: "900",
-    color: "#0F1D3A",
-    fontFamily: "serif", // 플랫폼에 따라 폰트 적용이 다를 수 있음
-  },
-  logoSubtitle: { fontSize: 14, color: "#666", marginTop: 5 },
+
+  // 카드 공통 스타일
   card: {
     flexDirection: "row",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFFFFF", // 깨끗한 흰색 배경
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 16,
     alignItems: "center",
+    // 그림자 효과로 고급스러움 추가
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "transparent", // 테두리 제거 (그림자로 대체)
   },
+
+  // 메인 카드 (첫 번째) 스타일
   mainCard: {
-    backgroundColor: "#0F1D3A",
-    borderColor: "#0F1D3A",
-    paddingVertical: 30,
+    backgroundColor: NAVY,
+    paddingVertical: 28,
+    // 메인 카드는 그림자를 좀 더 진하게
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
+
+  // 메인 카드 아이콘 박스 (반투명)
   iconBoxMain: {
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.15)", // 흰색 반투명
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
   },
+
+  // 서브 카드 아이콘 박스 (수정된 부분!)
+  iconBoxSub: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9", // 아주 연한 회색 (깔끔함)
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+
   cardTextBox: { flex: 1 },
+
   cardTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
+    fontWeight: "800", // 폰트 굵기 강화
+    color: "#111827",
     marginBottom: 4,
   },
-  cardDesc: { fontSize: 13, color: "#666" },
+  cardDesc: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
 });

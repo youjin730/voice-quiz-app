@@ -1,0 +1,297 @@
+import { router } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AppHeader from "../components/AppHeader";
+
+// 안드로이드 애니메이션 설정
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const NAVY = "#0F1D3A";
+
+export default function LongResult() {
+  const mockResult = {
+    score: 100,
+    riskCount: 0,
+    totalComment:
+      "사기꾼의 가짜 권위에 굴복하지 않고 배짱 있게 맞서셨습니다. 아주 훌륭합니다!",
+    goodPoints: [
+      "상대의 협박을 무시하고 도발한 점",
+      "신원을 부정하며 강하게 저항한 점",
+    ],
+    badPoints: [],
+    expertSolution: {
+      content:
+        "① 진짜 검사는 절대 전화로 체포한다고 협박하지 않습니다.\n② '지금 끊으면 공무집행방해다'라는 말은 100% 거짓말입니다.\n③ 무조건 끊으세요. 그리고 국번 없이 1301로 전화해서 사건 번호를 확인하세요.",
+    },
+  };
+
+  const [isSolutionOpen, setIsSolutionOpen] = useState(false);
+  const scoreAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(scoreAnim, {
+      toValue: mockResult.score,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+  }, []);
+
+  const toggleSolution = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsSolutionOpen(!isSolutionOpen);
+  };
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <AppHeader title="훈련 결과" />
+
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* 1. 점수 섹션 (숏폼 스타일) */}
+        <View style={styles.scoreSection}>
+          <Text style={styles.scoreLabel}>훈련 성적표</Text>
+          <View style={styles.scoreRow}>
+            <Text style={styles.scoreBig}>{mockResult.score}</Text>
+            <Text style={styles.scoreUnit}>점</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* 2. 상세 데이터 (위험 키워드만 남김) */}
+        <Text style={styles.sectionTitle}>상세 분석 데이터</Text>
+
+        <View style={styles.gridContainer}>
+          {/* 위험 키워드 감지 (단독 강조) */}
+          <View style={[styles.gridItem, { width: "100%" }]}>
+            <Text style={styles.gridLabel}>위험 키워드 감지</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text
+                style={[
+                  styles.gridValue,
+                  { color: mockResult.riskCount > 0 ? "#EF4444" : "#10B981" },
+                ]}
+              >
+                {mockResult.riskCount}회
+              </Text>
+              <Text style={{ fontSize: 14, color: "#666" }}>
+                {mockResult.riskCount === 0 ? "(안전함)" : "(주의 필요)"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 3. 총평 & 피드백 (숏폼 스타일 박스) */}
+        <Text style={styles.sectionTitle}>총평 & AI 코칭</Text>
+
+        <View style={styles.feedbackCard}>
+          <Text style={styles.feedbackLabel}>총평</Text>
+          <Text style={styles.feedbackText}>{mockResult.totalComment}</Text>
+
+          <View style={styles.separator} />
+
+          <Text style={[styles.feedbackLabel, { color: "#10B981" }]}>
+            ✅ 잘한 점
+          </Text>
+          {mockResult.goodPoints.map((text, i) => (
+            <Text key={i} style={styles.feedbackText}>
+              • {text}
+            </Text>
+          ))}
+
+          {mockResult.badPoints.length > 0 && (
+            <>
+              <View style={styles.separator} />
+              <Text style={[styles.feedbackLabel, { color: "#EF4444" }]}>
+                ❌ 보완할 점
+              </Text>
+              {mockResult.badPoints.map((text, i) => (
+                <Text key={i} style={styles.feedbackText}>
+                  • {text}
+                </Text>
+              ))}
+            </>
+          )}
+        </View>
+
+        {/* 4. 전문가 솔루션 (아코디언) */}
+        <Pressable style={styles.solutionBox} onPress={toggleSolution}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Text style={styles.solutionTitle}>전문가의 솔루션 보기</Text>
+            <MaterialCommunityIcons
+              name={isSolutionOpen ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#666"
+            />
+          </View>
+          {isSolutionOpen && (
+            <View
+              style={{
+                marginTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: "#eee",
+                paddingTop: 12,
+              }}
+            >
+              <Text style={styles.solutionText}>
+                {mockResult.expertSolution.content}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* 5. 버튼 (숏폼 스타일) */}
+        <Pressable
+          onPress={() => router.replace("/train-setup")}
+          style={styles.btn}
+        >
+          <Text style={styles.btnText}>다시 훈련하기</Text>
+        </Pressable>
+
+        <Pressable onPress={() => router.replace("/")} style={styles.btnGhost}>
+          <Text style={styles.btnGhostText}>홈으로</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#fff" },
+  container: { padding: 24, paddingBottom: 40 },
+
+  // 점수 섹션
+  scoreSection: { alignItems: "center", marginBottom: 24 },
+  scoreLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+  scoreRow: { flexDirection: "row", alignItems: "baseline" },
+  scoreBig: { fontSize: 64, fontWeight: "900", color: NAVY, lineHeight: 70 },
+  scoreUnit: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    marginLeft: 4,
+  },
+
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 24 },
+
+  // 섹션 타이틀
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 12,
+  },
+
+  // 그리드
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 32,
+  },
+  gridItem: {
+    backgroundColor: "#F9FAFB",
+    padding: 16,
+    borderRadius: 16,
+    justifyContent: "center",
+  },
+  gridLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  gridValue: { fontSize: 18, fontWeight: "800" },
+
+  // 피드백 카드
+  feedbackCard: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+  },
+  feedbackLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 6,
+    color: "#333",
+  },
+  feedbackText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 22,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  separator: { height: 1, backgroundColor: "#F3F4F6", marginVertical: 12 },
+
+  // 전문가 솔루션 박스
+  solutionBox: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+  },
+  solutionTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
+  solutionText: { fontSize: 14, color: "#4B5563", lineHeight: 22 },
+
+  // 버튼
+  btn: {
+    marginTop: 10,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+
+  btnGhost: {
+    marginTop: 12,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnGhostText: { color: "#111827", fontSize: 16, fontWeight: "900" },
+});
