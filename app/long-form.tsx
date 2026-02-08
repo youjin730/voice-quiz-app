@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState, useRef } from "react";
 import {
   View,
@@ -8,37 +8,49 @@ import {
   TouchableOpacity,
   Animated,
   Pressable,
-  Dimensions,
   Vibration,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-const { width } = Dimensions.get("window");
-
-const SCENARIO = {
-  title: "010-XXXX-XXXX", // 모르는 번호 느낌
-  opponent: "서울지검 김철수 수사관",
-  mission: "상대방이 '계좌 번호'를 요구하면\n즉시 거절하고 전화를 끊으세요.",
-};
+import { Audio } from "expo-av";
+// ✅ API 함수 가져오기
+import {
+  startLongsSession,
+  finishLongsSession,
+  getScenarios,
+} from "../api/training";
+import client from "../api/client";
 
 export default function LongFormScreen() {
-  // 상태: 통화중(CONNECTED) -> 종료됨(ENDED)
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [scenarioTitle, setScenarioTitle] = useState("랜덤 훈련 준비 중...");
+
   const [callStatus, setCallStatus] = useState<"CONNECTED" | "ENDED">(
     "CONNECTED",
   );
   const [turn, setTurn] = useState<"AI" | "USER">("AI");
-  const [isTalking, setIsTalking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // 처음엔 로딩 중
 
-  // 애니메이션 값
-  const micScale = useRef(new Animated.Value(1)).current; // 버튼 크기
-  const waveAnim = useRef(new Animated.Value(1)).current; // 파형
+  const [aiLastText, setAiLastText] = useState("연결 중입니다...");
+  const [isAiFinished, setIsAiFinished] = useState(false);
 
-  // 1. 시작하자마자 AI 발화 (매칭 화면 삭제)
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const micScale = useRef(new Animated.Value(1)).current;
+  const waveAnim = useRef(new Animated.Value(1)).current;
+  const [turnCount, setTurnCount] = useState(1); // 대화 턴 번호 관리
+
+  // 1. 화면 켜지자마자 실행
   useEffect(() => {
-    simulateAISpeaking();
+    initRandomSession();
+    return () => {
+      if (soundRef.current) soundRef.current.unloadAsync();
+    };
   }, []);
 
-  // 2. 파형 애니메이션 (AI 말할 때만)
+  // 2. 파동 애니메이션
   useEffect(() => {
     let loop: Animated.CompositeAnimation;
     if (turn === "AI" && callStatus === "CONNECTED") {
@@ -63,78 +75,256 @@ export default function LongFormScreen() {
     return () => loop?.stop();
   }, [turn, callStatus]);
 
-  // AI 턴 시뮬레이션
-  const simulateAISpeaking = () => {
-    if (callStatus === "ENDED") return;
-    setTurn("AI");
-    // 4초 뒤에 사용자 턴으로 넘김
-    setTimeout(() => {
+  // ✅ [핵심] 랜덤 시나리오 선택 & 세션 시작
+  const initRandomSession = async () => {
+    try {
+      // 1) 마이크 권한 확인
+      const perm = await Audio.requestPermissionsAsync();
+      if (perm.status !== "granted") {
+        Alert.alert("알림", "마이크 권한이 필요합니다.");
+        router.back();
+        return;
+      }
+
+      // 2) 시나리오 목록 가져오기 (랜덤 뽑기 위해)
+      const scenariosRes: any = await getScenarios();
+      const items =
+        scenariosRes.data?.data?.items || scenariosRes.data?.items || [];
+
+      if (items.length === 0) {
+        Alert.alert("알림", "준비된 시나리오가 없습니다.");
+        router.back();
+        return;
+      }
+
+      // 3) 랜덤 뽑기! 🎲
+      const randomIndex = Math.floor(Math.random() * items.length);
+      const randomScenario = items[randomIndex];
+      setScenarioTitle(randomScenario.title); // 화면에 제목 표시
+
+      console.log(
+        `🎲 당첨된 시나리오: [${randomScenario.id}] ${randomScenario.title}`,
+      );
+
+      // 4) 뽑힌 시나리오 ID로 세션 시작
+      const sessionRes: any = await startLongsSession(randomScenario.id);
+      const realSessionId = sessionRes.data?.data?.sessionId;
+
+      if (realSessionId) {
+        setSessionId(realSessionId);
+        setAiLastText("여보세요? 서울중앙지검 수사관입니다."); // 초기 멘트 (혹은 서버에서 받기)
+        setIsLoading(false); // 로딩 끝, 훈련 시작!
+
+        // 2초 뒤 사용자 턴
+        setTimeout(() => setTurn("USER"), 2000);
+      } else {
+        throw new Error("세션 ID 없음");
+      }
+    } catch (error) {
+      console.error("랜덤 세션 시작 실패:", error);
+      Alert.alert("오류", "훈련을 시작할 수 없습니다.");
+      router.back();
+    }
+  };
+
+  // ... (이하 녹음, 전송, 재생 로직은 기존과 동일) ...
+  // (복잡해질까봐 생략하지 않고, 기존 코드를 그대로 유지하세요)
+
+  const startRecording = async () => {
+    try {
+      if (turn === "AI" || isLoading || isAiFinished) return;
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      Vibration.vibrate(50);
+      Animated.spring(micScale, {
+        toValue: 0.9,
+        useNativeDriver: true,
+      }).start();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // app/training/long-form.tsx 파일 안의 stopRecordingAndSend 함수
+
+  // app/training/long-form.tsx
+
+  // (컴포넌트 상단에 state 추가 필요)
+
+  const stopRecordingAndSend = async () => {
+    if (!recordingRef.current) return;
+
+    try {
+      setIsRecording(false);
+      setIsLoading(true);
+      Animated.spring(micScale, { toValue: 1, useNativeDriver: true }).start();
+
+      // 1. 녹음 종료
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+
+      if (!uri || !sessionId) {
+        console.error("❌ 파일 또는 세션 ID 없음");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log(`📤 전송 시작 (Turn: ${turnCount})`);
+
+      // 2. FormData 생성 (명세서 규격 준수!)
+      const formData = new FormData();
+
+      // ✅ [필수 1] 세션 ID
+      formData.append("sessionId", sessionId.toString());
+
+      // ✅ [필수 2] 턴 번호 (이게 없어서 에러 났을 확률 1순위)
+      formData.append("turnNo", turnCount.toString());
+
+      // ✅ [필수 3] 입력 모드
+      formData.append("inputMode", "voice");
+
+      // ✅ [필수 4] 사용자 프로필 (명세서에 있으므로 더미 데이터라도 보냄)
+      // (기존 코드에 없었으면 빈 JSON이라도 보내야 안전함)
+      const dummyProfile = JSON.stringify({
+        user_profile: { name: "사용자", scenario_type: "loan" },
+      });
+      formData.append("userProfileJson", dummyProfile);
+
+      // ✅ [필수 5] 메타 데이터 (null 대신 빈 객체 문자열 전송)
+      formData.append(
+        "meta",
+        JSON.stringify({ sttConfidence: null, durationMs: null }),
+      );
+
+      // ✅ [필수 6] 오디오 파일
+      const fileData = {
+        uri: uri,
+        type: "audio/m4a", // 안드로이드라면 'audio/mp4' 확인 필요
+        name: "voice.m4a",
+      };
+      // 명세서엔 안 나왔지만 보통 파일 필드명은 'voiceFile' 아니면 'file'입니다.
+      // 일단 'voiceFile'로 시도!
+      formData.append("file", fileData as any);
+
+      // 3. 서버 전송
+      const response = await client.post(
+        "/api/training/longs/messages",
+        formData,
+        {
+          // ✅ 헤더 설정을 아예 삭제하거나, 빈 객체로 두세요.
+          // Axios가 알아서 "multipart/form-data; boundary=..." 를 만들어줍니다.
+          headers: {
+            Accept: "application/json", // 이건 괜찮음
+          },
+          transformRequest: (data) => data,
+        },
+      );
+
+      console.log("✅ 전송 성공:", response.data);
+
+      const resData = response.data?.data;
+      if (resData) {
+        const { aiText, status, aiAudioUrl } = resData;
+
+        // 다음 턴을 위해 번호 증가
+        setTurnCount((prev) => prev + 1);
+
+        if (aiText) setAiLastText(aiText);
+        setTurn("AI");
+
+        if (status === "finished") {
+          setIsAiFinished(true);
+          setAiLastText(aiText || "통화가 종료되었습니다.");
+        }
+
+        // 오디오 재생
+        if (aiAudioUrl) {
+          const fullUrl = aiAudioUrl.startsWith("http")
+            ? aiAudioUrl
+            : `${client.defaults.baseURL}${aiAudioUrl}`;
+          await playAiVoice(fullUrl, status === "finished");
+        } else {
+          if (status === "finished") handleHangUp();
+          else setTimeout(() => setTurn("USER"), 2000);
+        }
+      }
+    } catch (error: any) {
+      console.error("🔥 전송 실패!");
+      // 에러 상세 확인
+      if (error.response?.data?.error) {
+        console.log(
+          "범인(에러상세):",
+          JSON.stringify(error.response.data.error, null, 2),
+        );
+        Alert.alert("전송 실패", "서버 규격 불일치: 로그 확인 필요");
+      } else {
+        Alert.alert("전송 실패", "네트워크 오류");
+      }
       setTurn("USER");
-    }, 4000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // 버튼 꾹 눌렀을 때 (말하기 시작)
-  const handlePressIn = () => {
-    if (turn === "AI") return;
-    setIsTalking(true);
-    // 햅틱 피드백 (진동) - 폰에서만 작동
-    Vibration.vibrate(50);
-
-    // 버튼 커지는 애니메이션
-    Animated.spring(micScale, {
-      toValue: 0.9, // 눌리는 느낌 (작아짐)
-      useNativeDriver: true,
-    }).start();
+  const playAiVoice = async (url: string, isFinished: boolean) => {
+    try {
+      if (soundRef.current) await soundRef.current.unloadAsync();
+      const { sound } = await Audio.Sound.createAsync({ uri: url });
+      soundRef.current = sound;
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          if (isFinished) handleHangUp();
+          else setTurn("USER");
+        }
+      });
+    } catch (e) {
+      if (isFinished) handleHangUp();
+      else setTurn("USER");
+    }
   };
 
-  // 버튼 뗐을 때 (말하기 끝)
-  const handlePressOut = () => {
-    if (turn === "AI") return;
-    setIsTalking(false);
-
-    // 버튼 원래대로
-    Animated.spring(micScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-
-    // 1초 뒤 AI가 다시 말함
-    setTimeout(simulateAISpeaking, 1000);
+  const handleHangUp = async () => {
+    try {
+      setCallStatus("ENDED");
+      if (soundRef.current) await soundRef.current.stopAsync();
+      if (sessionId) await finishLongsSession(sessionId);
+      setTimeout(() => {
+        router.replace({ pathname: "/long-result", params: { sessionId } });
+      }, 1500);
+    } catch (e) {
+      router.replace("/home");
+    }
   };
 
-  // 통화 종료 (현실적인 종료 처리)
-  const handleHangUp = () => {
-    setCallStatus("ENDED");
-    // 1.5초 뒤 결과 페이지로 이동
-    setTimeout(() => {
-      router.replace("/long-result");
-    }, 1500);
-  };
-
-  /* ---------------- 화면: 통화 종료됨 ---------------- */
   if (callStatus === "ENDED") {
     return (
       <View style={[styles.container, styles.endedContainer]}>
         <MaterialCommunityIcons name="phone-hangup" size={60} color="#EF4444" />
         <Text style={styles.endedText}>통화 종료</Text>
-        <Text style={styles.endedSub}>00:42</Text>
+        <Text style={styles.endedSub}>훈련 결과를 분석 중입니다...</Text>
       </View>
     );
   }
 
-  /* ---------------- 화면: 통화 중 ---------------- */
   return (
     <SafeAreaView style={styles.container}>
-      {/* 1. 상단 정보 */}
       <View style={styles.header}>
-        <Text style={styles.scenarioTitle}>보이스피싱 의심 전화</Text>
-        <Text style={styles.opponentName}>{SCENARIO.opponent}</Text>
-        <Text style={styles.timer}>00:12</Text>
+        {/* ✅ 제목도 랜덤으로 뽑힌 걸 보여줌 */}
+        <Text style={styles.scenarioTitle}>{scenarioTitle}</Text>
+        <Text style={styles.opponentName}>AI 보이스피싱범</Text>
+        <Text style={styles.timer}>실전 훈련 중</Text>
       </View>
 
-      {/* 2. 중앙 비주얼 (상태 표시) */}
       <View style={styles.visualizerContainer}>
-        {/* 상대방 말할 때 파형 */}
         {turn === "AI" && (
           <Animated.View
             style={[styles.waveCircle, { transform: [{ scale: waveAnim }] }]}
@@ -146,57 +336,65 @@ export default function LongFormScreen() {
             />
           </Animated.View>
         )}
-
-        {/* 내가 말할 때 (버튼 누르고 있을 때) 시각 효과 */}
-        {isTalking && (
-          <View style={styles.micActiveIndicator}>
-            <MaterialCommunityIcons
-              name="microphone"
-              size={48}
-              color="#22C55E"
-            />
-            <Text style={styles.micActiveText}>내 목소리 전송 중...</Text>
-          </View>
+        {isLoading && (
+          <ActivityIndicator
+            size="large"
+            color="#22C55E"
+            style={{ marginTop: 20 }}
+          />
         )}
 
-        {/* 대기 중 텍스트 */}
-        {!isTalking && turn === "USER" && (
+        <View style={styles.subtitleContainer}>
+          <Text style={styles.subtitleText}>{aiLastText}</Text>
+        </View>
+
+        {!isRecording && !isLoading && turn === "USER" && !isAiFinished && (
           <Text style={styles.instructionText}>버튼을 누르고 말하세요</Text>
         )}
       </View>
 
-      {/* 3. 하단 컨트롤러 */}
       <View style={styles.footer}>
-        {/* PTT 버튼 (가운데 크게) */}
         <Animated.View
           style={[styles.pttWrapper, { transform: [{ scale: micScale }] }]}
         >
           <Pressable
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            disabled={turn === "AI"}
+            onPressIn={startRecording}
+            onPressOut={stopRecordingAndSend}
+            disabled={turn === "AI" || isLoading || isAiFinished}
             style={({ pressed }) => [
               styles.pttButton,
-              turn === "AI" && styles.pttDisabled, // AI 턴일 때 회색
-              isTalking && styles.pttActive, // 말할 때 초록색
+              (turn === "AI" || isLoading || isAiFinished) &&
+                styles.pttDisabled,
+              isRecording && styles.pttActive,
             ]}
           >
             <MaterialCommunityIcons
-              name={isTalking ? "microphone" : "microphone-outline"}
+              name={isRecording ? "microphone" : "microphone-outline"}
               size={40}
-              color={turn === "AI" ? "#999" : "#fff"}
+              color={
+                turn === "AI" || isLoading || isAiFinished ? "#999" : "#fff"
+              }
             />
-            <Text style={[styles.pttText, turn === "AI" && { color: "#999" }]}>
-              {turn === "AI"
-                ? "상대방 말하는 중"
-                : isTalking
-                  ? "말하는 중"
-                  : "누르고 말하기"}
+            <Text
+              style={[
+                styles.pttText,
+                (turn === "AI" || isLoading || isAiFinished) && {
+                  color: "#999",
+                },
+              ]}
+            >
+              {isAiFinished
+                ? "통화 종료됨"
+                : turn === "AI"
+                  ? "상대방 말하는 중"
+                  : isLoading
+                    ? "연결 중..."
+                    : isRecording
+                      ? "말하는 중..."
+                      : "누르고 말하기"}
             </Text>
           </Pressable>
         </Animated.View>
-
-        {/* 종료 버튼 (아래쪽 빨간 버튼) */}
         <TouchableOpacity style={styles.hangUpButton} onPress={handleHangUp}>
           <MaterialCommunityIcons name="phone-hangup" size={32} color="#fff" />
         </TouchableOpacity>
@@ -206,14 +404,10 @@ export default function LongFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#151C2C" }, // 딥 다크 네이비
-
-  // --- 통화 종료 화면 ---
+  container: { flex: 1, backgroundColor: "#151C2C" },
   endedContainer: { alignItems: "center", justifyContent: "center" },
   endedText: { color: "#fff", fontSize: 24, fontWeight: "bold", marginTop: 20 },
   endedSub: { color: "#888", fontSize: 16, marginTop: 8 },
-
-  // --- 헤더 ---
   header: { alignItems: "center", marginTop: 40 },
   scenarioTitle: { color: "#94A3B8", fontSize: 14, marginBottom: 8 },
   opponentName: {
@@ -223,47 +417,51 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   timer: { color: "#fff", fontSize: 16, fontWeight: "300", opacity: 0.8 },
-
-  // --- 중앙 비주얼 ---
   visualizerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 20,
   },
-
-  // AI 파형
   waveCircle: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "rgba(239, 68, 68, 0.2)", // Red tint
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
     borderWidth: 2,
     borderColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 30,
   },
-
-  // 내 마이크 활성 표시
-  micActiveIndicator: { alignItems: "center", gap: 10 },
-  micActiveText: { color: "#22C55E", fontSize: 16, fontWeight: "700" },
-
-  instructionText: { color: "#64748B", fontSize: 16 },
-
-  // --- 하단 컨트롤 ---
+  subtitleContainer: {
+    backgroundColor: "rgba(0,0,0,0.3)",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    width: "100%",
+    alignItems: "center",
+  },
+  subtitleText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 26,
+  },
+  instructionText: { color: "#64748B", fontSize: 16, marginTop: 10 },
   footer: {
     paddingBottom: 50,
     alignItems: "center",
     paddingHorizontal: 30,
     gap: 30,
   },
-
-  // 말하기 버튼 (PTT)
   pttWrapper: { width: "100%", alignItems: "center" },
   pttButton: {
     width: "100%",
     height: 80,
     borderRadius: 24,
-    backgroundColor: "#334155", // 기본: 다크 그레이
+    backgroundColor: "#334155",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -271,21 +469,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  pttActive: {
-    backgroundColor: "#22C55E", // 활성: 밝은 초록색
-    borderColor: "#22C55E",
-    shadowColor: "#22C55E",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20, // 네온 효과
-    elevation: 10,
-  },
-  pttDisabled: {
-    opacity: 0.6,
-  },
+  pttActive: { backgroundColor: "#22C55E", borderColor: "#22C55E" },
+  pttDisabled: { opacity: 0.6 },
   pttText: { fontSize: 18, fontWeight: "700", color: "#fff" },
-
-  // 종료 버튼
   hangUpButton: {
     width: 70,
     height: 70,

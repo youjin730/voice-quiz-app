@@ -11,18 +11,22 @@ import {
 import { Audio } from "expo-av";
 import { MaterialIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
+import client from "../api/client"; // ✅ API 클라이언트 불러오기
 
 export default function DeepfakeScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // 서버 통신 및 AI 생성 대기
-  const [resultUrl, setResultUrl] = useState<string | null>(null); // 완성된 딥페이크 URL
+  const [isLoading, setIsLoading] = useState(false); // 서버 통신 대기
+  const [resultUrl, setResultUrl] = useState<string | null>(null); // 결과 URL
 
   // 1. 녹음 시작
   async function startRecording() {
     try {
       const perm = await Audio.requestPermissionsAsync();
-      if (perm.status !== "granted") return;
+      if (perm.status !== "granted") {
+        Alert.alert("권한 필요", "마이크 사용 권한을 허용해주세요.");
+        return;
+      }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -46,36 +50,66 @@ export default function DeepfakeScreen() {
     setAudioUri(uri);
   }
 
-  // 3. [핵심] 서버로 파일 전송 (S3 업로드 -> AI 변환)
+  // 3. [핵심] 서버로 파일 전송 (API 연동 적용)
   const handleUploadAndConvert = async () => {
     if (!audioUri) return;
     setIsLoading(true);
 
-    // 실제 백엔드 전송 로직 (FormData 사용)
+    // ✅ FormData 생성 (파일 전송용)
     const formData = new FormData();
-    formData.append("file", {
+
+    // 리액트 네이티브에서 파일 보낼 때 포맷 (uri, name, type 필수)
+    formData.append("voiceFile", {
       uri: audioUri,
-      type: "audio/m4a", // 녹음 파일 타입
-      name: "user_voice.m4a",
+      name: "recording.m4a", // 파일명
+      type: "audio/m4a", // 파일 타입
     } as any);
 
     try {
-      // === [서버 시뮬레이션] ===
-      // 실제 코드: const response = await fetch('YOUR_API_URL/voice-cloning', { method: 'POST', body: formData });
+      // ✅ 진짜 서버 API 호출 (POST /api/uploads/voice)
+      // client.ts의 설정을 따르지만, 파일 업로드는 헤더가 달라서 따로 지정
+      const response = (await client.post("/api/uploads/voice", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        transformRequest: (data) => {
+          return data; // FormData 변형 방지
+        },
+      })) as any;
 
-      console.log("1. 백엔드로 파일 전송 중...");
-      console.log("2. 백엔드에서 S3 업로드 중...");
-      console.log("3. ElevenLabs API에 텍스트와 S3 URL 전달...");
+      // ✅ 서버 응답 처리
+      // 백엔드 명세: { success: true, data: { url: "...", ... } }
+      // client.ts 인터셉터가 data 알맹이만 주므로 response는 { url, key, ... } 형태
+      console.log("업로드 성공:", response);
 
-      // 4초 딜레이로 AI 생성 시간 흉내
-      setTimeout(() => {
-        setIsLoading(false);
-        setResultUrl("https://example.com/fake_voice.mp3"); // 결과 URL 반환 가정
-        Alert.alert("완료", "내 목소리가 딥페이크로 변조되었습니다.");
-      }, 4000);
+      if (response && response.url) {
+        setResultUrl(response.url); // 결과 URL 저장
+        Alert.alert("완료", "목소리 변환이 완료되었습니다.");
+
+        // (선택사항) 기록 저장 API 호출
+        // await client.post("/api/experience/records", { originalUrl: response.url, note: "딥페이크 체험" });
+      } else {
+        throw new Error("서버 응답에 URL이 없습니다.");
+      }
     } catch (error) {
-      Alert.alert("오류", "서버 통신 실패");
+      console.error("업로드 실패:", error);
+      Alert.alert("오류", "파일 업로드에 실패했습니다. 다시 시도해주세요.");
+    } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 4. 결과 재생 (Expo Audio SoundObject 사용)
+  const playResult = async () => {
+    if (!resultUrl) return;
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: resultUrl },
+        { shouldPlay: true },
+      );
+      // 재생 끝날 때까지 기다리거나, 그냥 실행
+    } catch (e) {
+      Alert.alert("재생 오류", "오디오를 재생할 수 없습니다.");
     }
   };
 
@@ -122,7 +156,7 @@ export default function DeepfakeScreen() {
                         color="#fff"
                         style={{ marginRight: 10 }}
                       />
-                      <Text style={styles.btnText}>AI 변환 중...</Text>
+                      <Text style={styles.btnText}>서버로 전송 중...</Text>
                     </View>
                   ) : (
                     <Text style={styles.btnText}>AI 딥페이크 생성하기</Text>
@@ -130,15 +164,11 @@ export default function DeepfakeScreen() {
                 </TouchableOpacity>
               ) : (
                 // 변환 완료: 재생 버튼
-                // [수정] 여기 View에 width: '100%'를 추가했습니다!
                 <View style={{ width: "100%" }}>
                   <TouchableOpacity
                     style={styles.playBtn}
-                    onPress={() =>
-                      Alert.alert("재생", "변조된 목소리가 재생됩니다.")
-                    }
+                    onPress={playResult} // ✅ 실제 재생 함수 연결
                   >
-                    {/* 아이콘과 텍스트 크기를 좀 더 키워서 시원하게 만듦 */}
                     <MaterialIcons
                       name="play-circle-filled"
                       size={24}
@@ -218,14 +248,12 @@ const styles = StyleSheet.create({
   },
   playBtn: {
     backgroundColor: "#1565C0",
-    paddingVertical: 18, // 높이도 살짝 키움
+    paddingVertical: 18,
     width: "100%",
     borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center", // 가운데 정렬 추가
-    flexDirection: "row", // 아이콘과 텍스트 가로 배치
-
-    // 그림자 추가해서 더 버튼답게
+    justifyContent: "center",
+    flexDirection: "row",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

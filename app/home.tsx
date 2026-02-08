@@ -1,16 +1,70 @@
+import React, { useState } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  Alert,
+} from "react-native";
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
+import { getScenarios } from "../api/training";
 
 // 브랜드 컬러 상수
 const NAVY = "#0F1D3A";
 
 export default function Home() {
+  const [loading, setLoading] = useState(false); // 로딩 상태 추가
+
+  // 🎲 랜덤 훈련 시작 함수
+  const handleRandomStart = async () => {
+    try {
+      setLoading(true); // 로딩 시작 (버튼 비활성화 등을 위해)
+
+      // 1. 시나리오 목록을 가져옴
+      const response: any = await getScenarios();
+      const items = response.data?.data?.items || response.data?.items || [];
+
+      if (items.length > 0) {
+        // 2. 랜덤 인덱스 뽑기 (0 ~ 개수-1)
+        const randomIndex = Math.floor(Math.random() * items.length);
+        const selectedScenario = items[randomIndex];
+
+        console.log("시나리오:", selectedScenario.title);
+
+        // 3. 바로 롱폼(통화) 화면으로 이동!
+        router.push({
+          pathname: "/long-form",
+          params: {
+            scenarioId: selectedScenario.id, // 당첨된 ID
+            title: selectedScenario.title,
+            category: selectedScenario.category,
+          },
+        });
+      } else {
+        // 데이터가 없을 때 (혹시 모를 대비)
+        Alert.alert("알림", "준비된 훈련 시나리오가 없습니다.");
+      }
+    } catch (error) {
+      console.error("랜덤 시작 실패:", error);
+      // 에러 나면 그냥 1번 시나리오로 강제 이동 (테스트용)
+      router.push({
+        pathname: "/long-form",
+        params: {
+          scenarioId: 1,
+          title: "보이스피싱 실전 훈련",
+          category: "loan",
+        },
+      });
+    } finally {
+      setLoading(false); // 로딩 끝
+    }
+  };
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F7FB" }}>
-      {/* 배경색을 아주 연한 회색으로 주어 카드와 대비감 형성 */}
-      <AppHeader />
+      <AppHeader hideBack={true} />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* 메뉴 1: 목소리 사칭 방어훈련 (메인 - 네이비 배경) */}

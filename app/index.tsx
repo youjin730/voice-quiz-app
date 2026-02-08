@@ -8,6 +8,7 @@ import {
   Linking,
   TouchableOpacity,
   Dimensions,
+  Alert, // 알림창 추가
 } from "react-native";
 import {
   MaterialCommunityIcons,
@@ -22,9 +23,18 @@ export default function Landing() {
     Linking.openURL(`tel:${number}`);
   };
 
+  // 소셜 로그인 핸들러 (임시)
+  const handleSocialLogin = (provider: string) => {
+    // 나중에 백엔드 API 연동 시 여기에 로직 추가
+    Alert.alert(
+      "알림",
+      `${provider} 로그인은 현재 준비 중입니다.\n일반 로그인을 이용해주세요.`,
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* 1. 상단 & 중단: 브랜드 로고 및 로그인 (흰색 배경) */}
+      {/* 1. 상단 & 중단: 브랜드 로고 및 로그인 */}
       <View style={styles.upperSection}>
         {/* 로고 영역 */}
         <View style={styles.logoArea}>
@@ -36,18 +46,24 @@ export default function Landing() {
 
         {/* 로그인 버튼 영역 */}
         <View style={styles.loginArea}>
-          {/* 1) 일반 로그인 버튼 */}
+          {/* 1) [수정됨] 일반 로그인 버튼 -> 로그인 페이지로 이동 */}
           <Pressable
             style={[styles.loginBtn, styles.generalLogin]}
-            onPress={() => router.push("/home")}
+            onPress={() => router.push("/login")}
           >
-            <Text style={styles.loginText}>로그인</Text>
+            <MaterialCommunityIcons
+              name="email-outline"
+              size={20}
+              color="#333"
+              style={styles.btnIcon}
+            />
+            <Text style={styles.loginText}>이메일로 로그인</Text>
           </Pressable>
 
-          {/* 2) 구글 로그인 버튼 (추가됨) */}
+          {/* 2) 구글 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.google]}
-            onPress={() => router.push("/home")}
+            onPress={() => handleSocialLogin("Google")}
           >
             <AntDesign
               name="google"
@@ -63,7 +79,7 @@ export default function Landing() {
           {/* 3) 카카오 로그인 버튼 */}
           <Pressable
             style={[styles.loginBtn, styles.kakao]}
-            onPress={() => router.push("/home")}
+            onPress={() => handleSocialLogin("Kakao")}
           >
             <FontAwesome
               name="comment"
@@ -76,7 +92,7 @@ export default function Landing() {
             </Text>
           </Pressable>
 
-          {/* 4) 회원가입 | 아이디 찾기 링크 (수정됨) */}
+          {/* 4) 회원가입 | 아이디 찾기 링크 */}
           <View style={styles.linkContainer}>
             <TouchableOpacity
               onPress={() => router.push("/signup")}
@@ -88,7 +104,7 @@ export default function Landing() {
             <View style={styles.divider} />
 
             <TouchableOpacity
-              onPress={() => router.push("/find-id")}
+              onPress={() => Alert.alert("알림", "준비 중입니다.")}
               hitSlop={10}
             >
               <Text style={styles.linkText}>아이디 찾기</Text>
@@ -97,7 +113,7 @@ export default function Landing() {
         </View>
       </View>
 
-      {/* 2. 하단: 긴급 신고 센터 (회색 배경으로 분리) */}
+      {/* 2. 하단: 긴급 신고 센터 */}
       <View style={styles.bottomSection}>
         <View style={styles.emergencyHeader}>
           <MaterialCommunityIcons
@@ -163,7 +179,6 @@ export default function Landing() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
 
-  // === 상단 섹션 (로고 + 로그인) ===
   upperSection: {
     flex: 1,
     justifyContent: "center",
@@ -171,11 +186,10 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  // 로고 스타일
   logoArea: {
     alignItems: "center",
-    marginBottom: 60, // 버튼이 늘어나서 간격 조금 줄임
-    marginTop: 200,
+    marginBottom: 60,
+    marginTop: 80, // 상단 여백 조정
   },
   logoHanja: {
     fontSize: 64,
@@ -203,12 +217,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // 로그인 버튼 스타일
   loginArea: {
-    gap: 12, // 버튼 사이 간격
+    gap: 12,
   },
   loginBtn: {
-    height: 52, // 버튼 높이 약간 조정
+    height: 52,
     borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
@@ -218,14 +231,12 @@ const styles = StyleSheet.create({
   btnIcon: { marginRight: 10 },
   loginText: { fontSize: 16, fontWeight: "700", color: "#333" },
 
-  // 일반 로그인
   generalLogin: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#0F1D3A",
   },
 
-  // 구글 로그인 (추가)
   google: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -233,11 +244,9 @@ const styles = StyleSheet.create({
   },
   googleText: { color: "#333" },
 
-  // 카카오 로그인
   kakao: { backgroundColor: "#FEE500" },
   kakaoText: { color: "#3B1E1E" },
 
-  // [수정됨] 하단 링크 컨테이너 (회원가입 | 아이디 찾기)
   linkContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -253,10 +262,9 @@ const styles = StyleSheet.create({
     width: 1,
     height: 12,
     backgroundColor: "#ccc",
-    marginHorizontal: 16, // 좌우 간격
+    marginHorizontal: 16,
   },
 
-  // === 하단 섹션 (긴급 신고) ===
   bottomSection: {
     backgroundColor: "#F8F9FA",
     paddingTop: 30,

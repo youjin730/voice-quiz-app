@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -7,56 +7,133 @@ import {
   Text,
   View,
   Pressable,
-  Dimensions,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import AppHeader from "../components/AppHeader";
+// ✅ API 함수 불러오기 (경로가 다르면 수정해주세요)
+import { getWeeklyReport } from "../api/feedback";
 
-const { width } = Dimensions.get("window");
 const NAVY = "#0F1D3A";
 
 type TabMode = "SHORT" | "LONG";
 
 export default function FeedbackScreen() {
   const [activeTab, setActiveTab] = useState<TabMode>("SHORT");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // MOCK DATA: 숏폼(퀴즈) 데이터 -> 3가지 지표 유지
-  const shortData = {
-    count: 24,
-    accuracy: "58%",
-    subStatLabel: "오답 유형",
-    subStatValue: "대출 권유",
-    oneLine:
-      "확신이 없을 땐 '잘 모르겠음' 선택이 안전합니다. 대출 권유 유형에서 오답률이 높습니다.",
-    weakPatterns: [
-      "저금리 대출 문자에 링크 클릭 유도",
-      "기존 대출 상환을 위한 선입금 요구",
-    ],
-    weakType: "LOAN", // 대출 사칭
-  };
+  // 서버에서 받아온 데이터를 저장할 상태
+  const [reportData, setReportData] = useState<{
+    SHORT: any;
+    LONG: any;
+  }>({
+    SHORT: null,
+    LONG: null,
+  });
 
-  // MOCK DATA: 롱폼(실전) 데이터 -> 방어 등급 제거 (2가지 지표만 사용)
-  const longData = {
-    count: 12,
-    accuracy: "85점", // 롱폼은 점수
-    // subStatLabel, subStatValue 제거됨
-    oneLine:
-      "기관 사칭 상황에서 당황하여 침묵하는 시간이 깁니다. 더 단호하게 끊는 연습이 필요합니다.",
-    weakPatterns: [
-      "검찰/경찰 사칭 시 목소리 떨림 감지",
-      "압박 질문('공무집행방해')에 답변 못함",
-    ],
-    weakType: "INVESTIGATOR", // 기관 사칭
+  // 1. 데이터 가져오기 (화면 진입 시 실행)
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  // FeedbackScreen 컴포넌트 내부의 fetchReports 함수 수정
+
+  const fetchReports = async () => {
+    try {
+      setIsLoading(true);
+
+      // ❌ [임시 주석 처리] 백엔드 에러 때문에 API 잠시 끔
+      /*
+      const [shortRes, longRes] = (await Promise.all([
+        getWeeklyReport("short"),
+        getWeeklyReport("long"),
+      ])) as [any, any];
+      */
+
+      // ✅ [임시 추가] 더미 데이터 (화면 확인용)
+      console.log("⚠️ 백엔드 DB 에러로 인해 더미 데이터를 보여줍니다.");
+
+      // 가짜 데이터 만들기
+      const shortRes = {
+        count: 12,
+        accuracy: 85,
+        weak_type_name: "지인 사칭형",
+        one_line_feedback: "지인 사칭형 문제에 조금 더 주의가 필요해요!",
+        weak_patterns: ["급한 돈 요구", "휴대폰 고장 핑계"],
+        weak_type_code: "impersonation",
+      };
+
+      const longRes = {
+        count: 5,
+        average_score: 72,
+        one_line_feedback: "실전 대화 훈련 점수가 상승하고 있습니다.",
+        weak_patterns: ["검찰 사칭 대응", "개인정보 요구"],
+        weak_type_code: "institution",
+      };
+
+      // 상태 업데이트
+      setReportData({
+        SHORT: {
+          count: shortRes?.count || 0,
+          accuracy: shortRes?.accuracy ? `${shortRes.accuracy}%` : "0%",
+          subStatLabel: "오답 유형",
+          subStatValue: shortRes?.weak_type_name || "분석 중",
+          oneLine:
+            shortRes?.one_line_feedback ||
+            "아직 충분한 훈련 데이터가 없습니다.",
+          weakPatterns: shortRes?.weak_patterns || [],
+          weakType: shortRes?.weak_type_code || null,
+        },
+        LONG: {
+          count: longRes?.count || 0,
+          accuracy: longRes?.average_score
+            ? `${longRes.average_score}점`
+            : "0점",
+          oneLine:
+            longRes?.one_line_feedback ||
+            "실전 훈련을 통해 방어력을 높여보세요.",
+          weakPatterns: longRes?.weak_patterns || [],
+          weakType: longRes?.weak_type_code || null,
+        },
+      });
+    } catch (error) {
+      console.error("리포트 로딩 실패:", error);
+      Alert.alert("알림", "리포트를 불러오는데 실패했습니다.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 현재 탭에 따른 데이터 선택
-  const currentData = activeTab === "SHORT" ? shortData : longData;
+  // 데이터가 로딩 전이라면 빈 객체({})를 줘서 에러 방지
+  const currentData = reportData[activeTab] || {
+    count: 0,
+    accuracy: "-",
+    oneLine: "로딩 중...",
+    weakPatterns: [],
+  };
+
+  // 3. 로딩 화면
+  if (isLoading) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.safe,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={NAVY} />
+        <Text style={{ marginTop: 10, color: "#666" }}>데이터 분석 중...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <AppHeader title="개인 피드백 리포트" />
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* 1. 탭 스위처 (Short vs Long) */}
+        {/* 탭 스위처 */}
         <View style={styles.tabContainer}>
           <Pressable
             style={[
@@ -89,20 +166,20 @@ export default function FeedbackScreen() {
           </Pressable>
         </View>
 
-        {/* 2. 메인 학습 리포트 카드 */}
+        {/* 메인 학습 리포트 카드 */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>학습 리포트 (최근 7일)</Text>
 
-          {/* 통계 박스 (Flex로 자동 조절) */}
+          {/* 통계 박스 */}
           <View style={styles.statsRow}>
-            {/* 1. 훈련 횟수 (공통) */}
+            {/* 1. 훈련 횟수 */}
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>훈련 횟수</Text>
               <Text style={styles.statValue}>{currentData.count}회</Text>
               <Text style={styles.statSub}>꾸준함 유지</Text>
             </View>
 
-            {/* 2. 정답률 / 평균 점수 (공통) */}
+            {/* 2. 정답률 / 평균 점수 */}
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>
                 {activeTab === "SHORT" ? "정답률" : "평균 점수"}
@@ -114,11 +191,11 @@ export default function FeedbackScreen() {
             {/* 3. 오답 유형 (숏폼일 때만 표시) */}
             {activeTab === "SHORT" && (
               <View style={styles.statBox}>
-                <Text style={styles.statLabel}>{shortData.subStatLabel}</Text>
+                <Text style={styles.statLabel}>{currentData.subStatLabel}</Text>
                 <Text
                   style={[styles.statValue, { fontSize: 18, marginTop: 4 }]}
                 >
-                  {shortData.subStatValue}
+                  {currentData.subStatValue}
                 </Text>
                 <Text style={styles.statSub}>집중 관리</Text>
               </View>
@@ -132,32 +209,49 @@ export default function FeedbackScreen() {
           </View>
         </View>
 
-        {/* 3. 취약 패턴 분석 및 훈련 유도 */}
+        {/* 취약 패턴 분석 및 훈련 유도 */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>취약 패턴 (개선 포인트)</Text>
 
-          <View style={styles.patternList}>
-            {currentData.weakPatterns.map((pattern, idx) => (
-              <View key={idx} style={styles.patternItem}>
-                <View style={styles.dot} />
-                <Text style={styles.patternText}>{pattern}</Text>
-              </View>
-            ))}
-          </View>
+          {currentData.weakPatterns && currentData.weakPatterns.length > 0 ? (
+            <View style={styles.patternList}>
+              {currentData.weakPatterns.map((pattern: string, idx: number) => (
+                <View key={idx} style={styles.patternItem}>
+                  <View style={styles.dot} />
+                  <Text style={styles.patternText}>{pattern}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            // 취약 패턴이 없을 경우 안내
+            <Text style={{ color: "#999", marginBottom: 20 }}>
+              분석된 취약 패턴이 없습니다. 훈련을 진행해주세요.
+            </Text>
+          )}
 
           {/* 하단 CTA 버튼 */}
           <Pressable
             style={styles.trainBtn}
             onPress={() => {
-              // 해당 모드와 취약 유형을 가지고 훈련 설정으로 이동
-              router.push("/train-setup");
+              // API에서 받은 코드를 넘겨줌 (없으면 기본 숏폼)
+              if (currentData.weakType) {
+                router.push({
+                  pathname: "/train-setup",
+                  params: {
+                    autoMode: activeTab,
+                    targetType: currentData.weakType,
+                  },
+                });
+              } else {
+                router.push("/train-setup");
+              }
             }}
           >
             <Text style={styles.trainBtnText}>이 유형으로 훈련하기</Text>
           </Pressable>
         </View>
 
-        {/* 4. 필수 행동 가이드 */}
+        {/* 필수 행동 가이드 */}
         <View style={[styles.card, { marginBottom: 40 }]}>
           <Text style={[styles.cardTitle, { color: NAVY }]}>
             필수 행동 가이드
@@ -254,7 +348,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statBox: {
-    flex: 1, // 아이템 개수에 따라 너비 자동 분배 (2개면 50%, 3개면 33%)
+    flex: 1,
     backgroundColor: "#F9FAFB",
     borderRadius: 16,
     padding: 12,

@@ -1,56 +1,245 @@
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { Audio } from "expo-av"; // 오디오 재생용
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+// ✅ API 함수 import
+import {
+  getShortsQuiz,
+  startShortsSession,
+  submitShortsAnswer,
+  finishShortsSession,
+} from "../api/training";
 
+// 답변 타입 (서버는 "real" | "fake", 화면은 O/X)
 type Answer = "O" | "X" | "UNKNOWN";
 
-const TOTAL = 5;
-
 export default function Play() {
-  const [idx, setIdx] = useState(0);
-  const [selected, setSelected] = useState<Answer | null>(null);
-  const [correctCount, setCorrectCount] = useState(0);
+  const params = useLocalSearchParams();
+  // 카테고리가 있으면 받음 (없으면 전체)
+  const categoryCode = params.category as string;
 
-  const progress = useMemo(() => (idx + 1) / TOTAL, [idx]);
+  // 상태 관리
+  const [loading, setLoading] = useState(true);
+  const [quizList, setQuizList] = useState<any[]>([]); // 문제 목록
+  const [sessionId, setSessionId] = useState<number | null>(null); // 세션 ID
+
+  const [idx, setIdx] = useState(0); // 현재 문제 번호 (0부터 시작)
+  const [selected, setSelected] = useState<Answer | null>(null); // 내가 고른 답
+  const [correctCount, setCorrectCount] = useState(0); // 맞은 개수
+  const [sound, setSound] = useState<Audio.Sound | null>(null); // 오디오 객체
+  const [isPlaying, setIsPlaying] = useState(false); // 재생 중 여부
+
+  // 진행률 계산
+  const total = quizList.length;
+  const progress = useMemo(
+    () => (total > 0 ? (idx + 1) / total : 0),
+    [idx, total],
+  );
   const canNext = selected !== null;
 
-  // 더미 정답
-  const getCorrectAnswer = (questionIndex: number): Answer =>
-    questionIndex % 2 === 0 ? "X" : "O";
+  // 1. 초기 데이터 로드 (문제 가져오기 + 세션 시작)
+  useEffect(() => {
+    initQuiz();
+    return () => {
+      // 컴포넌트 나갈 때 오디오 정리
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, []);
 
-  const onNext = () => {
-    if (!selected) return;
-
-    const correct = getCorrectAnswer(idx);
-    const isCorrect = selected === correct;
-
-    if (selected !== "UNKNOWN" && isCorrect) setCorrectCount((p) => p + 1);
-
-    if (idx === TOTAL - 1) {
-      // ✅ result.tsx는 total/correct를 받도록 수정할 거라 params로 넘김
-      router.push({
-        pathname: "/short-result",
-        params: {
-          total: String(TOTAL),
-          correct: String(
-            selected !== "UNKNOWN" && isCorrect
-              ? correctCount + 1
-              : correctCount,
-          ),
-        },
-      });
-      return;
+  // 2. 문제 바뀔 때마다 오디오 로드
+  useEffect(() => {
+    if (quizList.length > 0 && idx < total) {
+      loadAudio(quizList[idx].audioUrl);
     }
+  }, [idx, quizList]);
 
-    setIdx((p) => p + 1);
-    setSelected(null);
+  // short-form.tsx 내부 initQuiz 함수 수정
+
+  // Play.tsx (short-form.tsx) 내부
+
+  const initQuiz = async () => {
+    try {
+      setLoading(true);
+
+      // 1) 세션 시작 요청
+      const sessionRes: any = await startShortsSession(5);
+      console.log("세션 응답:", sessionRes.data);
+
+      // 🚨 [수정] axios.data -> backend.data -> sessionId
+      const realSessionId = sessionRes.data?.data?.sessionId;
+
+      if (realSessionId) {
+        setSessionId(realSessionId);
+        console.log("✅ 세션 ID 확보:", realSessionId);
+      } else {
+        console.error("세션 ID가 없습니다.", sessionRes.data);
+      }
+
+      // 2) 문제 목록 가져오기
+      const quizRes: any = await getShortsQuiz(categoryCode, 5);
+      console.log("퀴즈 응답:", quizRes.data);
+
+      // 🚨 [수정] axios.data -> backend.data -> items
+      const items = quizRes.data?.data?.items;
+
+      if (items && items.length > 0) {
+        setQuizList(items);
+      } else {
+        console.log("빈 리스트 도착");
+        throw new Error("문제 목록이 비어있습니다.");
+      }
+    } catch (error) {
+      console.error("퀴즈 로딩 실패:", error);
+      Alert.alert("오류", "문제를 불러오지 못했습니다.");
+      router.back();
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Play.tsx 내부의 loadAudio 함수 수정
+
+  // ✅ 내 서버 주소 (client.ts에 있는 그 주소!)
+  const BASE_URL = "https://hypsometric-katabolically-kelsie.ngrok-free.dev";
+
+  const loadAudio = async (url: string) => {
+    try {
+      console.log("🎵 원본 오디오 URL:", url); // 로그 확인 필수!
+
+      if (!url) {
+        console.error("오디오 URL이 비어있습니다.");
+        return;
+      }
+
+      // [핵심 수정] URL이 'http'로 시작하지 않으면 앞에 도메인을 붙여준다!
+      const fullUrl = url.startsWith("http") ? url : `${BASE_URL}${url}`;
+
+      console.log("🔗 변환된 오디오 URL:", fullUrl);
+
+      if (sound) {
+        await sound.unloadAsync();
+      }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: fullUrl },
+        { shouldPlay: true }, // 로드되면 바로 재생 (원하면 false)
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          newSound.setPositionAsync(0);
+        }
+      });
+    } catch (error) {
+      console.error("❌ 오디오 로드 실패:", error);
+      Alert.alert("오류", "오디오 파일을 불러올 수 없습니다.");
+    }
   };
 
+  // 재생/일시정지 토글
+  const togglePlay = async () => {
+    if (!sound) return;
+    if (isPlaying) {
+      await sound.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      await sound.playAsync();
+      setIsPlaying(true);
+    }
+  };
+
+  // Play.tsx (short-form.tsx) 내부
+
+  const onNext = async () => {
+    if (!selected || !sessionId) return;
+
+    try {
+      // ... (userChoice 계산 로직은 그대로 유지) ...
+      let userChoice: "real" | "fake" = "real";
+      if (selected === "O") userChoice = "fake";
+      else if (selected === "X") userChoice = "real";
+
+      const currentQuiz = quizList[idx];
+
+      // 1. 정답 제출 API 호출
+      const response: any = await submitShortsAnswer({
+        sessionId: sessionId,
+        roundNo: idx + 1,
+        shortId: currentQuiz.id,
+        userChoice: userChoice,
+        timeMs: 5000,
+      });
+
+      // 🚨 [수정] axios.data -> backend.data -> isCorrect
+      // 명세서: { success: true, data: { isCorrect: true, ... } }
+      const resultData = response.data?.data;
+
+      console.log("채점 결과:", resultData);
+
+      // 정답 여부 카운트
+      if (resultData && resultData.isCorrect) {
+        setCorrectCount((prev) => prev + 1);
+      }
+
+      // 2. 마지막 문제라면 결과 페이지로
+      if (idx === total - 1) {
+        await finishShortsSession(sessionId);
+
+        router.replace({
+          pathname: "/short-result",
+          params: {
+            sessionId: sessionId,
+            total: String(total),
+            // 마지막 문제 정답이면 +1 해서 보냄
+            correct: String(
+              resultData?.isCorrect ? correctCount + 1 : correctCount,
+            ),
+          },
+        });
+        return;
+      }
+
+      // 3. 다음 문제로 이동
+      setIdx((prev) => prev + 1);
+      setSelected(null);
+    } catch (error) {
+      console.error("답안 제출 실패:", error);
+      // 에러 시에도 다음 문제로 넘어가게 처리
+      if (idx < total - 1) {
+        setIdx((prev) => prev + 1);
+        setSelected(null);
+      }
+    }
+  };
+
+  // 이전 버튼 (단순 이동)
   const onPrev = () => {
     if (idx === 0) return;
     setIdx((p) => p - 1);
     setSelected(null);
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#0F1D3A" />
+        <Text style={{ marginTop: 10 }}>문제를 불러오는 중...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -60,7 +249,7 @@ export default function Play() {
           <Text style={styles.topIcon}>←</Text>
         </Pressable>
 
-        <Text style={styles.topTitle}>app name</Text>
+        <Text style={styles.topTitle}>숏폼 훈련</Text>
 
         <Pressable onPress={() => router.push("/mypage")} style={styles.topBtn}>
           <Text style={styles.topRight}>My</Text>
@@ -74,30 +263,39 @@ export default function Play() {
       </View>
 
       <View style={styles.container}>
-        <Text style={styles.qMark}>Q.</Text>
+        <Text style={styles.qMark}>Q{idx + 1}.</Text>
         <Text style={styles.question}>이 음성은 AI 변조(딥페이크)인가요?</Text>
 
-        {/* (원하면 유지) 음성 카드 - 컴팩트 버전 */}
+        {/* 음성 카드 */}
         <View style={styles.audioCard}>
-          <View style={styles.playCircle}>
-            <Text style={styles.playIcon}>▶</Text>
-          </View>
+          <Pressable onPress={togglePlay} style={styles.playCircle}>
+            <MaterialCommunityIcons
+              name={isPlaying ? "pause" : "play"}
+              size={30}
+              color="#fff"
+            />
+          </Pressable>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.audioTitle}>음성 듣기</Text>
+            <Text style={styles.audioTitle}>
+              {isPlaying ? "재생 중..." : "음성 듣기"}
+            </Text>
+            {/* 오디오 파형 느낌의 바 */}
             <View style={styles.seekRow}>
               <View style={styles.seekBg} />
-              <View style={styles.seekFill} />
+              <View
+                style={[styles.seekFill, { width: isPlaying ? "60%" : "0%" }]}
+              />
             </View>
 
             <View style={styles.timeRow}>
-              <Text style={styles.timeText}>0:03</Text>
-              <Text style={styles.timeText}>0:12</Text>
+              <Text style={styles.timeText}>0:00</Text>
+              <Text style={styles.timeText}>0:15</Text>
             </View>
           </View>
         </View>
 
-        {/* O / X 카드 (컴팩트 사이즈) */}
+        {/* O / X 카드 */}
         <View style={styles.oxRow}>
           <Pressable
             onPress={() => setSelected("O")}
@@ -108,7 +306,7 @@ export default function Play() {
             ]}
           >
             <Text style={styles.oSymbol}>O</Text>
-            <Text style={styles.oxLabel}>그렇다</Text>
+            <Text style={styles.oxLabel}>그렇다 (가짜)</Text>
           </Pressable>
 
           <Pressable
@@ -120,11 +318,11 @@ export default function Play() {
             ]}
           >
             <Text style={styles.xSymbol}>X</Text>
-            <Text style={styles.oxLabel}>아니다</Text>
+            <Text style={styles.oxLabel}>아니다 (진짜)</Text>
           </Pressable>
         </View>
 
-        {/* 잘 모르겠음: 기본은 회색, 선택 시에만 테두리 */}
+        {/* 잘 모르겠음 */}
         <Pressable
           onPress={() => setSelected("UNKNOWN")}
           style={[
@@ -150,12 +348,14 @@ export default function Play() {
             disabled={!canNext}
             style={[styles.nextBtn, !canNext && styles.nextDisabled]}
           >
-            <Text style={styles.nextText}>다음 문제</Text>
+            <Text style={styles.nextText}>
+              {idx === total - 1 ? "결과 보기" : "다음 문제"}
+            </Text>
           </Pressable>
         </View>
 
         <Text style={styles.footerText}>
-          {idx + 1}/{TOTAL} · 현재정답(누적): {correctCount}
+          {idx + 1}/{total} · 현재 정답: {correctCount}개
         </Text>
       </View>
     </SafeAreaView>
@@ -178,7 +378,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
   },
-  topBtn: { width: 44, height: 44, justifyContent: "center" },
+  topBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   topIcon: { color: "#fff", fontSize: 22, fontWeight: "800" },
   topTitle: {
     flex: 1,
@@ -196,7 +401,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 18, paddingTop: 16 },
 
   qMark: { color: BLUE, fontSize: 22, fontWeight: "900" },
-  // ✅ 질문 크기 줄임 (오른쪽 레퍼런스 느낌)
   question: {
     marginTop: 8,
     fontSize: 20,
@@ -205,10 +409,9 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
 
-  // ✅ 음성 카드도 조금 컴팩트하게
   audioCard: {
     marginTop: 14,
-    marginBottom: 100,
+    marginBottom: 40, // 공간 조정
     backgroundColor: "#F3F4F6",
     borderRadius: 18,
     padding: 14,
@@ -248,7 +451,6 @@ const styles = StyleSheet.create({
   },
   timeText: { color: "#6B7280", fontSize: 13, fontWeight: "700" },
 
-  // ✅ OX 카드 줄임
   oxRow: {
     marginTop: 14,
     flexDirection: "row",
@@ -256,7 +458,7 @@ const styles = StyleSheet.create({
   },
   oxCard: {
     width: "48%",
-    height: 170, // ← 기존 220에서 축소
+    height: 150,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
@@ -265,16 +467,13 @@ const styles = StyleSheet.create({
   oCard: { backgroundColor: O_BG },
   xCard: { backgroundColor: X_BG },
 
-  // 선택된 것만 테두리
   oSelectedBorder: { borderWidth: 3, borderColor: BLUE },
   xSelectedBorder: { borderWidth: 3, borderColor: X_BORDER },
 
-  // ✅ 심볼/라벨 크기 축소
-  oSymbol: { fontSize: 72, fontWeight: "900", color: BLUE },
-  xSymbol: { fontSize: 72, fontWeight: "900", color: X_BORDER },
-  oxLabel: { fontSize: 18, fontWeight: "900", color: "#111827" },
+  oSymbol: { fontSize: 60, fontWeight: "900", color: BLUE },
+  xSymbol: { fontSize: 60, fontWeight: "900", color: X_BORDER },
+  oxLabel: { fontSize: 16, fontWeight: "900", color: "#111827" },
 
-  // ✅ 잘 모르겠음: 기본 회색, 선택 시만 테두리
   unknownBtn: {
     marginTop: 12,
     height: 56,

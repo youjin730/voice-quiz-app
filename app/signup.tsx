@@ -10,64 +10,98 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
+import { signup } from "../api/auth";
 
 export default function SignupScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   // 입력 상태 관리
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [name, setName] = useState("");
-  const [birth, setBirth] = useState(""); // [추가됨] 생년월일
-  const [address, setAddress] = useState(""); // [추가됨] 주소
+  const [birth, setBirth] = useState("");
+  // const [address, setAddress] = useState(""); // 주소 제거함
   const [phone, setPhone] = useState("");
 
   // 비밀번호 보이기/숨기기 토글
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  // 유효성 검사
+  // 유효성 검사 (비밀번호 일치만 확인)
   const isPwMatch = password && confirmPw && password === confirmPw;
 
-  // [수정됨] 생년월일과 주소도 필수 입력 조건에 포함
+  // ✅ [수정됨] 주소(address) 제거, 비밀번호 길이 제한 없음 (그냥 입력만 하면 됨)
   const isFormValid =
-    email &&
-    password &&
-    confirmPw &&
-    name &&
-    birth &&
-    address &&
-    phone &&
+    email.length > 0 &&
+    password.length > 0 &&
+    confirmPw.length > 0 &&
+    name.length > 0 &&
+    birth.length > 0 &&
+    // address &&  <-- 제거됨
+    phone.length > 0 &&
     isPwMatch;
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!isFormValid) {
-      Alert.alert("입력 오류", "모든 정보를 올바르게 입력해주세요.");
+      Alert.alert("입력 오류", "모든 정보를 입력해주세요.");
       return;
     }
 
-    // 백엔드 전송용 데이터 확인 (콘솔 로그)
-    console.log({
-      email,
-      password,
-      name,
-      birth,
-      address,
-      phone,
-    });
+    try {
+      setLoading(true);
 
-    // TODO: 백엔드 회원가입 API 호출 로직
+      // ✅ [수정] 명세서에 맞춰서 딱 4개만 보냅니다!
+      const userData = {
+        email: email,
+        password: password,
+        name: name,
+        // 전화번호에서 하이픈(-) 제거해서 숫자만 보냄
+        phone: phone.replace(/-/g, ""),
+      };
 
-    Alert.alert("가입 완료", "청음의 회원이 되신 것을 환영합니다!", [
-      { text: "로그인하러 가기", onPress: () => router.back() },
-    ]);
+      // birth, address는 안 보냅니다!
+      console.log("보내는 데이터:", userData); // 로그로 확인
+
+      // API 호출 (주소는 /api/auth/register 로 잘 되어있는지 확인!)
+      await signup(userData);
+
+      Alert.alert("가입 완료", "청음의 회원이 되신 것을 환영합니다!", [
+        {
+          text: "로그인하러 가기",
+          onPress: () => router.replace("/"),
+        },
+      ]);
+      // app/signup.tsx 의 catch 부분 교체
+      // app/signup.tsx 하단
+    } catch (error: any) {
+      // 1. 에러의 정체를 낱낱이 파헤쳐서 로그에 찍습니다.
+      console.log("================ 에러 상세 로그 ================");
+      console.log("1. 에러 상태 코드:", error.response?.status);
+      console.log(
+        "2. 서버 응답 데이터:",
+        JSON.stringify(error.response?.data, null, 2),
+      );
+      console.log("================================================");
+
+      // 2. 화면에도 에러 내용을 띄워줍니다.
+      const serverMsg =
+        error.response?.data?.message || JSON.stringify(error.response?.data);
+
+      Alert.alert(
+        "회원가입 실패",
+        `이유: ${serverMsg ? serverMsg : "서버 연결 오류"}\n(상태코드: ${error.response?.status})`,
+      );
+    } finally {
+      setLoading(false);
+    }
   };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader title="회원가입" hideRightIcon={true} />
@@ -81,7 +115,7 @@ export default function SignupScreen() {
           <View style={styles.headerTextBox}>
             <Text style={styles.welcomeText}>환영합니다!</Text>
             <Text style={styles.subText}>
-              안전한 보이스피싱 방어를 위해{"\n"}필수 정보를 입력해주세요.
+              회원가입을 위해{"\n"}정보를 입력해주세요.
             </Text>
           </View>
 
@@ -99,7 +133,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="example@email.com"
+                  placeholder="아이디 입력"
                   placeholderTextColor="#bbb"
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -121,7 +155,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="영문, 숫자 포함 8자 이상"
+                  placeholder="비밀번호 입력" // 8자 이상 문구 제거
                   placeholderTextColor="#bbb"
                   secureTextEntry={!showPw}
                   value={password}
@@ -154,7 +188,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="비밀번호를 한 번 더 입력하세요"
+                  placeholder="비밀번호 재입력"
                   placeholderTextColor="#bbb"
                   secureTextEntry={!showConfirmPw}
                   value={confirmPw}
@@ -189,7 +223,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="실명을 입력해주세요"
+                  placeholder="이름 입력"
                   placeholderTextColor="#bbb"
                   value={name}
                   onChangeText={setName}
@@ -197,7 +231,7 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* 5. [추가됨] 생년월일 */}
+            {/* 5. 생년월일 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>생년월일</Text>
               <View style={styles.inputBox}>
@@ -209,7 +243,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="생년월일 8자리 (예: 19990101)"
+                  placeholder="예: 990101"
                   placeholderTextColor="#bbb"
                   keyboardType="number-pad"
                   maxLength={8}
@@ -219,27 +253,7 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* 6. [추가됨] 주소 */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>주소</Text>
-              <View style={styles.inputBox}>
-                <MaterialCommunityIcons
-                  name="home-outline"
-                  size={20}
-                  color="#888"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="도로명 주소를 입력해주세요"
-                  placeholderTextColor="#bbb"
-                  value={address}
-                  onChangeText={setAddress}
-                />
-              </View>
-            </View>
-
-            {/* 7. 휴대폰 번호 */}
+            {/* 6. 휴대폰 번호 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>휴대폰 번호</Text>
               <View style={styles.inputBox}>
@@ -251,7 +265,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="010-0000-0000"
+                  placeholder="전화번호 입력"
                   placeholderTextColor="#bbb"
                   keyboardType="phone-pad"
                   value={phone}
@@ -268,11 +282,18 @@ export default function SignupScreen() {
         {/* 가입 완료 버튼 */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.submitBtn, !isFormValid && styles.disabledBtn]}
+            style={[
+              styles.submitBtn,
+              (!isFormValid || loading) && styles.disabledBtn,
+            ]}
             onPress={handleSignup}
-            disabled={!isFormValid}
+            disabled={!isFormValid || loading}
           >
-            <Text style={styles.submitText}>가입 완료하기</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitText}>가입 완료하기</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
