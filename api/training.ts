@@ -62,7 +62,7 @@ export const startLongsSession = async (scenarioId: number) => {
   try {
     // ✅ 수정 포인트: 키 이름을 'scenario_id'로 변경!
     const response = await client.post("/api/training/longs/sessions", {
-      scenario_id: Number(scenarioId),
+      scenarioId: Number(scenarioId),
     });
 
     console.log("✅ [API 성공] 응답:", response.data);

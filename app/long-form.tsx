@@ -158,6 +158,8 @@ export default function LongFormScreen() {
 
   // (컴포넌트 상단에 state 추가 필요)
 
+  // ... (기타 import 동일)
+
   const stopRecordingAndSend = async () => {
     if (!recordingRef.current) return;
 
@@ -166,114 +168,86 @@ export default function LongFormScreen() {
       setIsLoading(true);
       Animated.spring(micScale, { toValue: 1, useNativeDriver: true }).start();
 
-      // 1. 녹음 종료
+      // 1. 녹음 파일 경로 확보
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
 
       if (!uri || !sessionId) {
-        console.error("❌ 파일 또는 세션 ID 없음");
         setIsLoading(false);
         return;
       }
 
-      console.log(`📤 전송 시작 (Turn: ${turnCount})`);
-
-      // 2. FormData 생성 (명세서 규격 준수!)
-      const formData = new FormData();
-
-      // ✅ [필수 1] 세션 ID
-      formData.append("sessionId", sessionId.toString());
-
-      // ✅ [필수 2] 턴 번호 (이게 없어서 에러 났을 확률 1순위)
-      formData.append("turnNo", turnCount.toString());
-
-      // ✅ [필수 3] 입력 모드
-      formData.append("inputMode", "voice");
-
-      // ✅ [필수 4] 사용자 프로필 (명세서에 있으므로 더미 데이터라도 보냄)
-      // (기존 코드에 없었으면 빈 JSON이라도 보내야 안전함)
-      const dummyProfile = JSON.stringify({
-        user_profile: { name: "사용자", scenario_type: "loan" },
-      });
-      formData.append("userProfileJson", dummyProfile);
-
-      // ✅ [필수 5] 메타 데이터 (null 대신 빈 객체 문자열 전송)
-      formData.append(
-        "meta",
-        JSON.stringify({ sttConfidence: null, durationMs: null }),
-      );
-
-      // ✅ [필수 6] 오디오 파일
-      const fileData = {
+      // 2. [파일 업로드] /api/uploads/voice 호출
+      const voiceFormData = new FormData();
+      voiceFormData.append("voiceFile", {
         uri: uri,
-        type: "audio/m4a", // 안드로이드라면 'audio/mp4' 확인 필요
-        name: "voice.m4a",
-      };
-      // 명세서엔 안 나왔지만 보통 파일 필드명은 'voiceFile' 아니면 'file'입니다.
-      // 일단 'voiceFile'로 시도!
-      formData.append("file", fileData as any);
+        type: "audio/m4a", // iOS 기준, 안드로이드는 audio/mp4 확인
+        name: `voice_${Date.now()}.m4a`,
+      } as any);
 
-      // 3. 서버 전송
+      console.log("📤 1단계: 음성 파일 업로드 시도...");
+      const uploadRes = await client.post("/api/uploads/voice", voiceFormData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      // 서버 응답에서 파일 URL 추출
+      const uploadedVoiceUrl = uploadRes.data?.data?.url;
+      if (!uploadedVoiceUrl)
+        throw new Error("파일 업로드 후 URL을 받지 못했습니다.");
+
+      // 3. [메시지 전송] /api/training/longs/messages 호출
+      // 백엔드 요청대로 'user_input' 변수명을 사용합니다.
+      const messagePayload = {
+        sessionId: sessionId,
+        turnNo: turnCount,
+        inputMode: "voice",
+        user_input: "사용자 음성 입력", // STT가 된다면 여기에 변환된 텍스트를 넣습니다.
+        userAudioUrl: uploadedVoiceUrl, // 업로드 성공한 S3 URL
+        meta: { sttConfidence: null, durationMs: null },
+        userProfileJson: JSON.stringify({
+          user_profile: { name: "사용자", scenario_type: "loan" },
+        }),
+      };
+
+      console.log("📤 2단계: 최종 메시지 전송...", messagePayload);
       const response = await client.post(
         "/api/training/longs/messages",
-        formData,
-        {
-          // ✅ 헤더 설정을 아예 삭제하거나, 빈 객체로 두세요.
-          // Axios가 알아서 "multipart/form-data; boundary=..." 를 만들어줍니다.
-          headers: {
-            Accept: "application/json", // 이건 괜찮음
-          },
-          transformRequest: (data) => data,
-        },
+        messagePayload,
       );
 
-      console.log("✅ 전송 성공:", response.data);
-
+      // 4. AI 응답 처리
       const resData = response.data?.data;
       if (resData) {
-        const { aiText, status, aiAudioUrl } = resData;
+        const { aiText, status, aiAudioUrl, aiAudioBase64 } = resData;
 
-        // 다음 턴을 위해 번호 증가
         setTurnCount((prev) => prev + 1);
-
         if (aiText) setAiLastText(aiText);
         setTurn("AI");
 
-        if (status === "finished") {
-          setIsAiFinished(true);
-          setAiLastText(aiText || "통화가 종료되었습니다.");
-        }
+        if (status === "finished") setIsAiFinished(true);
 
-        // 오디오 재생
-        if (aiAudioUrl) {
-          const fullUrl = aiAudioUrl.startsWith("http")
-            ? aiAudioUrl
-            : `${client.defaults.baseURL}${aiAudioUrl}`;
-          await playAiVoice(fullUrl, status === "finished");
-        } else {
-          if (status === "finished") handleHangUp();
-          else setTimeout(() => setTurn("USER"), 2000);
+        // AI 음성 재생 (Base64 우선 처리)
+        if (aiAudioBase64) {
+          await playAiVoice(
+            `data:audio/mpeg;base64,${aiAudioBase64}`,
+            status === "finished",
+          );
+        } else if (aiAudioUrl) {
+          await playAiVoice(aiAudioUrl, status === "finished");
         }
       }
     } catch (error: any) {
-      console.error("🔥 전송 실패!");
-      // 에러 상세 확인
-      if (error.response?.data?.error) {
-        console.log(
-          "범인(에러상세):",
-          JSON.stringify(error.response.data.error, null, 2),
-        );
-        Alert.alert("전송 실패", "서버 규격 불일치: 로그 확인 필요");
-      } else {
-        Alert.alert("전송 실패", "네트워크 오류");
-      }
+      console.error(
+        "🔥 전송 실패 상세:",
+        error.response?.data || error.message,
+      );
+      Alert.alert("통신 오류", "서버 설정(S3 등) 확인이 필요합니다.");
       setTurn("USER");
     } finally {
       setIsLoading(false);
     }
   };
-
   const playAiVoice = async (url: string, isFinished: boolean) => {
     try {
       if (soundRef.current) await soundRef.current.unloadAsync();

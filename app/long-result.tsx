@@ -13,13 +13,12 @@ import {
   UIManager,
   ActivityIndicator,
   Alert,
+  TouchableOpacity,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import AppHeader from "../components/AppHeader"; // 경로 주의 (app/play 안에 있다면 ../../)
-// ✅ API 함수 import
+import AppHeader from "../components/AppHeader";
 import { getLongsResult } from "../api/training";
 
-// 안드로이드 애니메이션 설정
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
@@ -28,43 +27,46 @@ if (
 }
 
 const NAVY = "#0F1D3A";
+const GREEN = "#10B981";
+const RED = "#EF4444";
 
 export default function LongResult() {
-  const { sessionId } = useLocalSearchParams(); // URL 파라미터로 받은 세션 ID
+  const { sessionId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
-  const [result, setResult] = useState<any>(null); // 서버 데이터 저장
-  const [isSolutionOpen, setIsSolutionOpen] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [isSolutionOpen, setIsSolutionOpen] = useState(true);
   const scoreAnim = useRef(new Animated.Value(0)).current;
 
-  // 1. 데이터 가져오기
   useEffect(() => {
-    fetchResult();
-  }, []);
+    if (sessionId) {
+      fetchResult();
+    } else {
+      Alert.alert("오류", "세션 정보가 없습니다.", [
+        { text: "확인", onPress: () => router.replace("/home") },
+      ]);
+    }
+  }, [sessionId]);
 
   const fetchResult = async () => {
     try {
-      if (!sessionId) {
-        // 테스트용 MOCK 데이터 (세션 ID 없이 들어왔을 때)
-        setResult(MOCK_RESULT);
-        animateScore(MOCK_RESULT.score);
-        setLoading(false);
-        return;
+      setLoading(true);
+      // ✅ 100% 서버 API 호출
+      const response = await getLongsResult(Number(sessionId));
+
+      // API 명세서 구조에 따른 데이터 추출
+      const data = response.data?.data || response.data;
+
+      if (data) {
+        setResult(data);
+        animateScore(data.score || 0);
+      } else {
+        throw new Error("결과 데이터가 비어있습니다.");
       }
-
-      // ✅ 진짜 서버 데이터 요청
-      // (API 주소가 명확하지 않으면 백엔드 개발자에게 문의 필요)
-      // 여기서는 임시로 'finish' 응답을 재활용하거나 별도 조회 API 사용 가정
-      const data: any = await getLongsResult(Number(sessionId));
-
-      console.log("결과 데이터:", data);
-      setResult(data);
-      animateScore(data.score || 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error("결과 조회 실패:", error);
-      Alert.alert("알림", "결과를 불러오지 못했습니다.");
-      // 에러 나도 화면은 보여주기 위해 Mock 데이터 사용 가능
-      setResult(MOCK_RESULT);
-      animateScore(MOCK_RESULT.score);
+      Alert.alert("분석 실패", "서버에서 결과 데이터를 가져오지 못했습니다.", [
+        { text: "홈으로", onPress: () => router.replace("/home") },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -73,7 +75,7 @@ export default function LongResult() {
   const animateScore = (targetScore: number) => {
     Animated.timing(scoreAnim, {
       toValue: targetScore,
-      duration: 1000,
+      duration: 1500,
       useNativeDriver: false,
     }).start();
   };
@@ -83,290 +85,210 @@ export default function LongResult() {
     setIsSolutionOpen(!isSolutionOpen);
   };
 
-  // 로딩 화면
   if (loading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
+      <SafeAreaView style={[styles.screen, styles.center]}>
         <ActivityIndicator size="large" color={NAVY} />
-        <Text style={{ marginTop: 10, color: "#666" }}>결과 분석 중...</Text>
+        <Text style={styles.loadingText}>
+          AI가 훈련 결과를 분석 중입니다...
+        </Text>
       </SafeAreaView>
     );
   }
 
-  // 데이터가 없을 때 (방어 코드)
+  // 결과 데이터가 없을 경우 아무것도 렌더링하지 않음 (방어 로직)
   if (!result) return null;
 
   return (
     <SafeAreaView style={styles.screen}>
-      <AppHeader title="훈련 결과" />
+      <AppHeader title="훈련 결과 분석" />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* 1. 점수 섹션 */}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.scoreSection}>
-          <Text style={styles.scoreLabel}>훈련 성적표</Text>
-          <View style={styles.scoreRow}>
-            {/* Animated.Text가 없으므로 state나 ref값 직접 표시 */}
-            {/* 복잡한 애니메이션 대신 그냥 텍스트로 표시하거나 Animated.createAnimatedComponent 사용 */}
-            <Text style={styles.scoreBig}>{result.score || 0}</Text>
+          <Text style={styles.scoreLabel}>보이스피싱 방어 지수</Text>
+          <View style={styles.scoreCircle}>
+            <Text style={styles.scoreBig}>{result.score ?? 0}</Text>
             <Text style={styles.scoreUnit}>점</Text>
           </View>
+          {result.ended_at && (
+            <Text style={styles.resultDate}>
+              훈련 종료: {new Date(result.ended_at).toLocaleString()}
+            </Text>
+          )}
         </View>
 
-        <View style={styles.divider} />
+        {/* AI 총평 섹션 */}
+        <View style={styles.sectionCard}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="robot" size={20} color={NAVY} />
+            <Text style={styles.cardTitle}>AI 종합 평가</Text>
+          </View>
+          <Text style={styles.summaryText}>
+            {result.ai_summary || "분석된 총평이 없습니다."}
+          </Text>
+        </View>
 
-        {/* 2. 상세 데이터 */}
-        <Text style={styles.sectionTitle}>상세 분석 데이터</Text>
+        {/* 잘한 점 / 보완할 점 섹션 */}
+        <View style={styles.analysisRow}>
+          <View style={[styles.analysisBox, { borderLeftColor: GREEN }]}>
+            <Text style={[styles.analysisLabel, { color: GREEN }]}>
+              ✅ 잘한 점
+            </Text>
+            {result.good_points && result.good_points.length > 0 ? (
+              result.good_points.map((p: string, i: number) => (
+                <Text key={i} style={styles.pointText}>
+                  • {p}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.pointText}>데이터 없음</Text>
+            )}
+          </View>
 
-        <View style={styles.gridContainer}>
-          {/* 위험 키워드 감지 */}
-          <View style={[styles.gridItem, { width: "100%" }]}>
-            <Text style={styles.gridLabel}>위험 키워드 감지</Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={[
-                  styles.gridValue,
-                  {
-                    color: (result.riskCount || 0) > 0 ? "#EF4444" : "#10B981",
-                  },
-                ]}
-              >
-                {result.riskCount || 0}회
-              </Text>
-              <Text style={{ fontSize: 14, color: "#666" }}>
-                {(result.riskCount || 0) === 0 ? "(안전함)" : "(주의 필요)"}
-              </Text>
-            </View>
+          <View style={[styles.analysisBox, { borderLeftColor: RED }]}>
+            <Text style={[styles.analysisLabel, { color: RED }]}>
+              ❌ 보완할 점
+            </Text>
+            {result.improvement_points &&
+            result.improvement_points.length > 0 ? (
+              result.improvement_points.map((p: string, i: number) => (
+                <Text key={i} style={styles.pointText}>
+                  • {p}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.pointText}>데이터 없음</Text>
+            )}
           </View>
         </View>
 
-        {/* 3. 총평 & 피드백 */}
-        <Text style={styles.sectionTitle}>총평 & AI 코칭</Text>
-
-        <View style={styles.feedbackCard}>
-          <Text style={styles.feedbackLabel}>총평</Text>
-          <Text style={styles.feedbackText}>
-            {result.ai_summary ||
-              result.totalComment ||
-              "분석된 총평이 없습니다."}
-          </Text>
-
-          <View style={styles.separator} />
-
-          {/* 잘한 점 */}
-          <Text style={[styles.feedbackLabel, { color: "#10B981" }]}>
-            ✅ 잘한 점
-          </Text>
-          {(result.good_points || result.goodPoints || []).map(
-            (text: string, i: number) => (
-              <Text key={i} style={styles.feedbackText}>
-                • {text}
-              </Text>
-            ),
+        {/* AI 코칭 섹션 */}
+        <Pressable style={styles.coachingCard} onPress={toggleSolution}>
+          <View style={styles.coachingHeader}>
+            <Text style={styles.coachingTitle}>💡 전문가 대응 가이드</Text>
+            <MaterialCommunityIcons
+              name={isSolutionOpen ? "chevron-up" : "chevron-down"}
+              size={24}
+              color="#666"
+            />
+          </View>
+          {isSolutionOpen && (
+            <Text style={styles.coachingText}>
+              {result.ai_coaching || "제공된 대응 팁이 없습니다."}
+            </Text>
           )}
-          {!result.good_points && !result.goodPoints && (
-            <Text style={styles.feedbackText}>-</Text>
-          )}
+        </Pressable>
 
-          {/* 보완할 점 */}
-          {(result.improvement_points || result.badPoints || []).length > 0 && (
-            <>
-              <View style={styles.separator} />
-              <Text style={[styles.feedbackLabel, { color: "#EF4444" }]}>
-                ❌ 보완할 점
-              </Text>
-              {(result.improvement_points || result.badPoints || []).map(
-                (text: string, i: number) => (
-                  <Text key={i} style={styles.feedbackText}>
-                    • {text}
-                  </Text>
-                ),
-              )}
-            </>
-          )}
+        <View style={styles.buttonGroup}>
+          <TouchableOpacity
+            onPress={() => router.replace("/train-setup")}
+            style={styles.primaryBtn}
+          >
+            <Text style={styles.primaryBtnText}>한 번 더 훈련하기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.replace("/home")}
+            style={styles.secondaryBtn}
+          >
+            <Text style={styles.secondaryBtnText}>홈으로 돌아가기</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* 4. 전문가 솔루션 (서버 데이터 없으면 숨김) */}
-        {result.ai_coaching && (
-          <Pressable style={styles.solutionBox} onPress={toggleSolution}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Text style={styles.solutionTitle}>전문가의 솔루션 보기</Text>
-              <MaterialCommunityIcons
-                name={isSolutionOpen ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#666"
-              />
-            </View>
-            {isSolutionOpen && (
-              <View
-                style={{
-                  marginTop: 12,
-                  borderTopWidth: 1,
-                  borderTopColor: "#eee",
-                  paddingTop: 12,
-                }}
-              >
-                <Text style={styles.solutionText}>{result.ai_coaching}</Text>
-              </View>
-            )}
-          </Pressable>
-        )}
-
-        {/* 5. 버튼 */}
-        <Pressable
-          onPress={() => router.replace("/train-setup")}
-          style={styles.btn}
-        >
-          <Text style={styles.btnText}>다시 훈련하기</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.replace("/home")}
-          style={styles.btnGhost}
-        >
-          <Text style={styles.btnGhostText}>홈으로</Text>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// 기본값 (에러 시 보여줄 데이터)
-const MOCK_RESULT = {
-  score: 85,
-  riskCount: 1,
-  totalComment:
-    "대체로 잘 대처하셨으나, 당황해서 답변이 늦어진 구간이 있습니다.",
-  goodPoints: ["상대의 협박을 무시하고 도발한 점"],
-  badPoints: ["초반에 당황하여 침묵한 점"],
-  ai_coaching:
-    "진짜 검사는 절대 전화로 체포한다고 협박하지 않습니다. 무조건 끊으세요.",
-};
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#fff" },
-  container: { padding: 24, paddingBottom: 40 },
-
-  // 점수 섹션
-  scoreSection: { alignItems: "center", marginBottom: 24 },
+  screen: { flex: 1, backgroundColor: "#F8F9FA" },
+  center: { justifyContent: "center", alignItems: "center" },
+  container: { padding: 20 },
+  loadingText: { marginTop: 15, color: "#666", fontSize: 16 },
+  scoreSection: { alignItems: "center", marginVertical: 30 },
   scoreLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  scoreRow: { flexDirection: "row", alignItems: "baseline" },
-  scoreBig: { fontSize: 64, fontWeight: "900", color: NAVY, lineHeight: 70 },
-  scoreUnit: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#9CA3AF",
-    marginLeft: 4,
-  },
-
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 24 },
-
-  // 섹션 타이틀
-  sectionTitle: {
     fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 12,
-  },
-
-  // 그리드
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 32,
-  },
-  gridItem: {
-    backgroundColor: "#F9FAFB",
-    padding: 16,
-    borderRadius: 16,
-    justifyContent: "center",
-  },
-  gridLabel: {
-    fontSize: 12,
-    color: "#6B7280",
+    color: "#666",
     fontWeight: "600",
-    marginBottom: 6,
+    marginBottom: 15,
   },
-  gridValue: { fontSize: 18, fontWeight: "800" },
-
-  // 피드백 카드
-  feedbackCard: {
+  scoreCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 6,
+    borderColor: NAVY,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  scoreBig: { fontSize: 44, fontWeight: "900", color: NAVY },
+  scoreUnit: { fontSize: 16, color: "#999", fontWeight: "600" },
+  resultDate: { marginTop: 15, fontSize: 12, color: "#AAA" },
+  sectionCard: {
+    backgroundColor: "#fff",
     padding: 20,
-    marginBottom: 24,
-  },
-  feedbackLabel: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 6,
-    color: "#333",
-  },
-  feedbackText: {
-    fontSize: 14,
-    color: "#374151",
-    lineHeight: 22,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  separator: { height: 1, backgroundColor: "#F3F4F6", marginVertical: 12 },
-
-  // 전문가 솔루션 박스
-  solutionBox: {
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    marginBottom: 20,
+    elevation: 1,
   },
-  solutionTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
-  solutionText: { fontSize: 14, color: "#4B5563", lineHeight: 22 },
-
-  // 버튼
-  btn: {
-    marginTop: 10,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: NAVY,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-
-  btnGhost: {
-    marginTop: 12,
-    height: 56,
-    borderRadius: 16,
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  cardTitle: { fontSize: 16, fontWeight: "700", marginLeft: 8, color: NAVY },
+  summaryText: { fontSize: 15, color: "#444", lineHeight: 24 },
+  analysisRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  analysisBox: {
+    flex: 1,
     backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 15,
+    borderRadius: 12,
+    borderLeftWidth: 5,
   },
-  btnGhostText: { color: "#111827", fontSize: 16, fontWeight: "900" },
+  analysisLabel: { fontSize: 14, fontWeight: "bold", marginBottom: 8 },
+  pointText: { fontSize: 13, color: "#555", marginBottom: 4, lineHeight: 18 },
+  coachingCard: {
+    backgroundColor: "#E7F0FF",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 30,
+  },
+  coachingHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  coachingTitle: { fontSize: 16, fontWeight: "700", color: "#1565C0" },
+  coachingText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 22,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    paddingTop: 15,
+  },
+  buttonGroup: { gap: 12 },
+  primaryBtn: {
+    height: 56,
+    backgroundColor: NAVY,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "bold" },
+  secondaryBtn: {
+    height: 56,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DDD",
+  },
+  secondaryBtnText: { color: "#333", fontSize: 16, fontWeight: "600" },
 });
